@@ -1,33 +1,100 @@
-# rust-template
+# pavuc
 
-Template for rust projects. Configures:
+A **TUI 1:1 analogue of [pavucontrol](https://freedesktop.org/software/pulseaudio/pavucontrol/)** — the PulseAudio Volume Control — built with [ratatui](https://ratatui.rs).
 
-- typos checks via `.typos.toml`: run `typos .`
-- empty `LICENSE` file
-- basic `deny.toml`: run `cargo deny check licenses`
-- ready to use `CHANGELOG` file
-- minimalistic workspace-level `Cargo.toml`
-- basic `.gitignore` file
-- empty `examples/` directory for config/theme/etc examples
-- empty `docs/` directory for user and agent docs
-- weekly dependabot scans via `.github/dependabot.yml`
-- CI/CD jobs handled by GitHub Actions via `.github/workflows`
-    - three build jobs: minimal (`--no-default-features`), normal, full (`--all-features`) via `build.yml`
-    - deny check job via `deny.yml`
-    - automated deploy to GitHub releases and crates.io on new tag pushes
-    - automated crates.io `doc` build checks via `doc.yml`
-    - formatters checks: fmt, clippy-minimal (`--no-default-features`), clippy-normal, clippy-full (`--all-features`) via `lint.yml`
-    - typos check via `typos.yml`
-    - automated tests checks with `codecov` coverage reports:  via `test.yml`
+pavucontrol is a PulseAudio client. On modern systems PipeWire ships
+`pipewire-pulse`, a drop-in PulseAudio server, so the very same client API
+(`libpulse`) drives **both PulseAudio and PipeWire** transparently. `pavuc`
+speaks that API and mirrors pavucontrol's five tabs in your terminal.
 
-## Requires manual changes
+```
+┌ pavuc — PulseAudio/PipeWire volume control ────────────────────────────────┐
+│  1:Playback   2:Recording   3:Output Devices   4:Input Devices   5:Config   │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌ Razer Kraken V3 Pro Analog Stereo ───────────────────────────── ★ default ──┐
+│ Port: Headphones   [Running]                                                │
+│ ███████████████████████████░░░░░░░░░░░░░░░░░░░  75%                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌ USB Audio Speakers ─────────────────────────────────────────────────────────┐
+│ Port: Speakers   [Idle]                                                     │
+│ ██████████████████████████████████░░░░░░░░░░░  100%                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+ Tab switch   ↑↓ select   ←→ vol   m mute   d default   Enter port   q quit
+```
 
-Look for `TODO` markers and replace with your data.
+## Workspace layout
 
-- `test.yml`: specify projects for `codecov` job
-- `deploy.yml`: binary and library crates paths to build and publish
+| Crate          | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| **`libpavuc`** | Library wrapping `libpulse` behind a clean, UI-friendly snapshot + commands |
+| **`pavuc`**    | The ratatui terminal UI binary                                              |
 
-## Required environment variables
+## Features
 
-- `CARGO_REGISTRY_TOKEN` for `deploy` job to crates.io
-- `CODECOV_TOKEN` for code coverage reports on `test` job
+A faithful, keyboard-driven port of pavucontrol's functionality:
+
+- **Playback** — per-application streams with volume bars, mute, routing to a
+  different output (`Enter`), and the ability to kill a stream (`x`).
+- **Recording** — per-application capture streams with volume, mute and routing
+  to a different input.
+- **Output Devices** — sinks with volume, mute, set-as-default (`d`) and port
+  selection (`Enter`).
+- **Input Devices** — sources with volume, mute, set-as-default and port
+  selection.
+- **Configuration** — sound cards with profile selection (`Enter`).
+- Live updates: the view reflects changes made by other apps in real time via
+  PulseAudio's subscription events.
+
+## Requirements
+
+- A running **PulseAudio** server **or PipeWire with `pipewire-pulse`**.
+- `libpulse` at build time (Debian/Ubuntu: `libpulse-dev`, Arch: `libpulse`,
+  Fedora: `pulseaudio-libs-devel`).
+
+## Build & run
+
+```sh
+cargo run -p pavuc
+```
+
+Or install the binary:
+
+```sh
+cargo install --path pavuc
+pavuc
+```
+
+## Keybindings
+
+| Key                          | Action                                              |
+| ---------------------------- | --------------------------------------------------- |
+| `1`–`5`, `Tab` / `Shift+Tab` | Switch tabs                                         |
+| `↑`/`↓` or `k`/`j`           | Move selection                                      |
+| `←`/`→` or `h`/`l`           | Volume −/+ 5%                                       |
+| `<`/`>` or `,`/`.`           | Volume −/+ 1% (fine)                                |
+| `m`                          | Toggle mute                                         |
+| `d`                          | Set device as default (Output/Input tabs)           |
+| `Enter`                      | Route stream / select port / select profile (popup) |
+| `x`                          | Kill the selected stream (Playback/Recording)       |
+| `q` / `Esc`                  | Quit (or close an open popup)                       |
+
+## Library example
+
+`libpavuc` can be used on its own. See [`libpavuc/examples/list.rs`](libpavuc/examples/list.rs):
+
+```sh
+cargo run -p libpavuc --example list
+```
+
+## Development
+
+```sh
+cargo build --workspace          # build everything
+cargo test --workspace           # run tests
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all
+```
+
+## License
+
+GPL-3.0-or-later — see [LICENSE](LICENSE).

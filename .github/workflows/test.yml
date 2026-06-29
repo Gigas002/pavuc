@@ -29,6 +29,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev
+
       - name: Build cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -42,8 +45,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO: add your crates here
-        package: [binary-crate, crate]
+        # pavuc is the binary crate, libpavuc is the library crate
+        package: [pavuc, libpavuc]
 
     name: codecov (${{ matrix.package }})
     runs-on: ubuntu-latest
@@ -52,6 +55,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev
 
       - name: Build cache
         uses: Swatinem/rust-cache@v2

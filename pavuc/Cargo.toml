@@ -1,0 +1,21 @@
+[package]
+name = "pavuc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+description = "A TUI 1:1 analogue to pavucontrol built with ratatui"
+keywords.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "pavuc"
+path = "src/main.rs"
+
+[dependencies]
+libpavuc.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+
+[features]
+default = []

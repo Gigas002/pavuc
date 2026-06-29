@@ -11,9 +11,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # TODO: configure your crates (dependency order for publishing)
-  BINARY_CRATES: '["binary-crate"]'
-  PUBLISH_CRATES: '["crate", "binary-crate"]'
+  # pavuc is the binary crate; libpavuc must be published first (dependency order)
+  BINARY_CRATES: '["pavuc"]'
+  PUBLISH_CRATES: '["libpavuc", "pavuc"]'
 
 jobs:
   configure:
@@ -37,6 +37,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev
 
       - name: Build cache
         uses: Swatinem/rust-cache@v2
@@ -89,6 +92,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev
 
       - name: Publish crate
         run: cargo publish -p ${{ matrix.package }}
