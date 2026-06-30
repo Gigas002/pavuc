@@ -1,61 +1,49 @@
-//! pavuc — a TUI 1:1 analogue of pavucontrol, built with ratatui.
+//! pavuc — a pavucontrol analogue TUI, built with ratatui.
 //!
 //! Connects to PulseAudio (or PipeWire via `pipewire-pulse`) and presents the
 //! same five tabs pavucontrol does: Playback, Recording, Output Devices,
 //! Input Devices and Configuration.
 
 mod app;
+mod cli;
+mod config;
+mod logger;
+mod settings;
 mod ui;
+mod utils;
 
-use std::time::Duration;
+use clap::Parser;
 
-use app::App;
-use libpavuc::PulseClient;
-use ratatui::crossterm::event::{self, Event, KeyEventKind};
-
-/// How long to wait for input before redrawing (drives the refresh cadence).
-const TICK: Duration = Duration::from_millis(100);
+use cli::CliOptions;
 
 fn main() {
-    let mut client = match PulseClient::connect("pavuc") {
-        Ok(client) => client,
+    let cli = CliOptions::parse();
+    let file_config = load_file_config(&cli);
+
+    let settings = match settings::resolve(&cli, file_config) {
+        Ok(settings) => settings,
         Err(error) => {
-            eprintln!("pavuc: could not connect to the audio server: {error}");
-            eprintln!("       is PulseAudio or pipewire-pulse running?");
+            eprintln!("pavuc: {error}");
             std::process::exit(1);
         }
     };
 
-    let mut terminal = ratatui::init();
-    let result = run(&mut terminal, &mut client);
-    ratatui::restore();
+    logger::init(&settings);
 
-    if let Err(error) = result {
-        eprintln!("pavuc: {error}");
+    if let Err(error) = app::run(settings) {
+        tracing::error!("{error}");
         std::process::exit(1);
     }
 }
 
-fn run(
-    terminal: &mut ratatui::DefaultTerminal,
-    client: &mut PulseClient,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut app = App::default();
+fn load_file_config(cli: &CliOptions) -> Option<config::FileConfig> {
+    let path = cli.config.clone().or_else(config::conventional_path)?;
 
-    while !app.should_quit {
-        client.iterate()?;
-        app.update_state(client.snapshot());
-
-        terminal.draw(|frame| ui::render(frame, &app))?;
-
-        if event::poll(TICK)?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-        {
-            app.status.clear();
-            app.handle_key(key.code, client);
+    match config::load(&path) {
+        Ok(file_config) => Some(file_config),
+        Err(error) => {
+            eprintln!("pavuc: {error}");
+            std::process::exit(1);
         }
     }
-
-    Ok(())
 }

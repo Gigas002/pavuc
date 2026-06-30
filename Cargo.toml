@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/pavuc/pavuc"
-description = "A TUI 1:1 analogue to pavucontrol"
+description = "A pavucontrol analogue TUI"
 keywords = ["pulseaudio", "tui", "ratatui", "volume", "pavucontrol"]
 repository = "https://github.com/pavuc/pavuc"
 version = "0.1.0"
@@ -16,3 +16,8 @@ libpavuc = { path = "libpavuc", version = "0.1.0" }
 libpulse-binding = "2"
 ratatui = "0.30"
 crossterm = "0.29"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+toml = "1"

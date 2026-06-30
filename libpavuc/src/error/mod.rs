@@ -30,3 +30,6 @@ impl std::error::Error for Error {}
 
 /// Convenience alias used throughout the crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests;
