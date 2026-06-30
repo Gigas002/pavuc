@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
-description = "A TUI 1:1 analogue to pavucontrol built with ratatui"
+description = "A pavucontrol analogue TUI built with ratatui"
 keywords.workspace = true
 repository.workspace = true
 
@@ -16,6 +16,11 @@ path = "src/main.rs"
 libpavuc.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [features]
 default = []

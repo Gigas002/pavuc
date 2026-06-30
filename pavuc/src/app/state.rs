@@ -428,7 +428,9 @@ impl App {
     }
 
     fn confirm_popup(&mut self, client: &mut PulseClient) {
-        let Some(popup) = &self.popup else { return };
+        let Some(popup) = &self.popup else {
+            return;
+        };
         let Some(item) = popup.items.get(popup.selected) else {
             return;
         };

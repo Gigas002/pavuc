@@ -384,3 +384,6 @@ fn display_name(app_name: &str, media_name: &str) -> String {
         (true, true) => "Unknown stream".to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests;
