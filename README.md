@@ -78,14 +78,6 @@ pavuc
 | `x`                          | Kill the selected stream (Playback/Recording)       |
 | `q` / `Esc`                  | Quit (or close an open popup)                       |
 
-## Library example
-
-`libpavuc` can be used on its own. See [`libpavuc/examples/list.rs`](libpavuc/examples/list.rs):
-
-```sh
-cargo run -p libpavuc --example list
-```
-
 ## Development
 
 ```sh
