@@ -1,0 +1,11 @@
+# Example pavuc configuration (TOML).
+# Copy to ~/.config/pavuc/config.toml or pass with `pavuc --config path/to/this/file`.
+
+# Application name reported to PulseAudio/PipeWire.
+client_name = "pavuc"
+
+# Log level: error, warn, info, debug, trace.
+log_level = "warn"
+
+# Event-loop tick interval in milliseconds (UI refresh cadence).
+tick_ms = 100

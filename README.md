@@ -1,6 +1,6 @@
 # pavuc
 
-A **TUI 1:1 analogue of [pavucontrol](https://freedesktop.org/software/pulseaudio/pavucontrol/)** — the PulseAudio Volume Control — built with [ratatui](https://ratatui.rs).
+A **[pavucontrol](https://freedesktop.org/software/pulseaudio/pavucontrol/) analogue** TUI built with [ratatui](https://ratatui.rs).
 
 pavucontrol is a PulseAudio client. On modern systems PipeWire ships
 `pipewire-pulse`, a drop-in PulseAudio server, so the very same client API
@@ -77,14 +77,6 @@ pavuc
 | `Enter`                      | Route stream / select port / select profile (popup) |
 | `x`                          | Kill the selected stream (Playback/Recording)       |
 | `q` / `Esc`                  | Quit (or close an open popup)                       |
-
-## Library example
-
-`libpavuc` can be used on its own. See [`libpavuc/examples/list.rs`](libpavuc/examples/list.rs):
-
-```sh
-cargo run -p libpavuc --example list
-```
 
 ## Development
 

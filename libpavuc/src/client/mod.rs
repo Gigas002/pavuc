@@ -423,3 +423,6 @@ fn uniform_volume(channels: u8, raw: u32) -> ChannelVolumes {
     cv.set(channels.max(1), Volume(raw));
     cv
 }
+
+#[cfg(test)]
+mod tests;
