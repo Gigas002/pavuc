@@ -52,15 +52,33 @@ impl PulseClient {
     /// Returns an [`Error`] if the main loop or context cannot be created, or
     /// if the connection to the server fails.
     pub fn connect(app_name: &str) -> Result<Self> {
+        Self::open(app_name, None)
+    }
+
+    /// Connects to the server at `server` (e.g. `unix:/run/user/1000/pulse/native`
+    /// or `tcp:host:4713`), blocking until the connection is ready or fails.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Self::connect`].
+    pub fn connect_to(app_name: &str, server: &str) -> Result<Self> {
+        Self::open(app_name, Some(server))
+    }
+
+    fn open(app_name: &str, server: Option<&str>) -> Result<Self> {
         let mainloop = Rc::new(RefCell::new(Mainloop::new().ok_or(Error::Mainloop)?));
         let context = Rc::new(RefCell::new(
             Context::new(&*mainloop.borrow(), app_name).ok_or(Error::Context)?,
         ));
 
-        context
+        // `pa_context_connect` only returns -1; the reason is in the context's errno.
+        if context
             .borrow_mut()
-            .connect(None, ContextFlagSet::NOFLAGS, None)
-            .map_err(|e| Error::Connect(format!("{e}")))?;
+            .connect(server, ContextFlagSet::NOFLAGS, None)
+            .is_err()
+        {
+            return Err(Error::Connect(last_error(&context.borrow())));
+        }
 
         // Pump the loop until the context is ready or fails.
         loop {
@@ -73,7 +91,7 @@ impl PulseClient {
             match context.borrow().get_state() {
                 ContextState::Ready => break,
                 ContextState::Failed | ContextState::Terminated => {
-                    return Err(Error::Connect("server refused the connection".to_string()));
+                    return Err(Error::Connect(last_error(&context.borrow())));
                 }
                 _ => {}
             }
@@ -350,6 +368,15 @@ impl Drop for PulseClient {
     fn drop(&mut self) {
         self.context.borrow_mut().disconnect();
     }
+}
+
+/// The context's last error as text, e.g. "Connection refused".
+fn last_error(context: &Context) -> String {
+    context
+        .errno()
+        .to_string()
+        .filter(|message| !message.is_empty())
+        .unwrap_or_else(|| "unknown error".to_string())
 }
 
 /// Builds a [`ChannelVolumes`] from raw per-channel values.

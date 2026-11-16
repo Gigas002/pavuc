@@ -10,8 +10,9 @@ use super::{PulseClient, channel_volumes};
 use crate::volume;
 
 #[test]
-fn connect_fn_matches_public_api() {
+fn connect_fns_match_public_api() {
     let _connect: fn(&str) -> Result<PulseClient, crate::Error> = PulseClient::connect;
+    let _connect_to: fn(&str, &str) -> Result<PulseClient, crate::Error> = PulseClient::connect_to;
 }
 
 #[test]
@@ -58,5 +59,24 @@ fn connect_snapshot_smoke() {
         state.sink_inputs.len(),
         state.source_outputs.len(),
         state.cards.len(),
+    );
+}
+
+/// Regression: a refused connection was reported as "Access denied", because
+/// `pa_context_connect`'s `-1` return was read as an error code.
+#[test]
+fn refused_connection_reports_the_real_reason() {
+    let dir = std::env::temp_dir().join(format!("libpavuc-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let socket = dir.join("no-server");
+    let error = PulseClient::connect_to("libpavuc-test", &format!("unix:{}", socket.display()))
+        .err()
+        .expect("connected to a socket that does not exist");
+    let _ = std::fs::remove_dir(&dir);
+    let message = error.to_string();
+    assert!(!message.contains("Access denied"), "{message}");
+    assert!(
+        message.contains("Connection refused") || message.contains("No such"),
+        "{message}"
     );
 }
