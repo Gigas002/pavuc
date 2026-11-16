@@ -104,12 +104,17 @@ impl App {
         Tab::ALL[self.tab]
     }
 
-    /// Replaces the cached snapshot and clamps selections to it.
+    /// Replaces the cached snapshot, keeping each tab's selection on the same
+    /// object when it moved, or clamping it when the object went away.
     pub fn update_state(&mut self, state: PulseState) {
+        let selected_ids = Tab::ALL.map(|tab| self.item_id(tab, self.selected[tab as usize]));
         self.state = state;
-        for (i, tab) in Tab::ALL.iter().enumerate() {
-            let count = self.item_count(*tab);
-            if count == 0 {
+        for (tab, id) in Tab::ALL.into_iter().zip(selected_ids) {
+            let i = tab as usize;
+            let count = self.item_count(tab);
+            if let Some(position) = id.and_then(|id| self.position_of(tab, id)) {
+                self.selected[i] = position;
+            } else if count == 0 {
                 self.selected[i] = 0;
             } else if self.selected[i] >= count {
                 self.selected[i] = count - 1;
@@ -130,6 +135,28 @@ impl App {
             Tab::Output => self.state.sinks.len(),
             Tab::Input => self.state.sources.len(),
             Tab::Configuration => self.state.cards.len(),
+        }
+    }
+
+    /// Server index of the object at `position` in `tab`.
+    fn item_id(&self, tab: Tab, position: usize) -> Option<u32> {
+        match tab {
+            Tab::Playback => self.state.sink_inputs.get(position).map(|s| s.index),
+            Tab::Recording => self.state.source_outputs.get(position).map(|s| s.index),
+            Tab::Output => self.state.sinks.get(position).map(|d| d.index),
+            Tab::Input => self.state.sources.get(position).map(|d| d.index),
+            Tab::Configuration => self.state.cards.get(position).map(|c| c.index),
+        }
+    }
+
+    /// Position of the object with server index `id` in `tab`.
+    fn position_of(&self, tab: Tab, id: u32) -> Option<usize> {
+        match tab {
+            Tab::Playback => self.state.sink_inputs.iter().position(|s| s.index == id),
+            Tab::Recording => self.state.source_outputs.iter().position(|s| s.index == id),
+            Tab::Output => self.state.sinks.iter().position(|d| d.index == id),
+            Tab::Input => self.state.sources.iter().position(|d| d.index == id),
+            Tab::Configuration => self.state.cards.iter().position(|c| c.index == id),
         }
     }
 

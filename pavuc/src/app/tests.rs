@@ -367,3 +367,45 @@ fn volume_step_keeps_channel_balance() {
         vec![volume::percent_to_raw(105), volume::percent_to_raw(105) / 2]
     );
 }
+
+/// Regression: with streams A, B, C and B selected, A going away moved the
+/// highlight onto C, so the next `m` or `x` hit the wrong application.
+#[test]
+fn selection_follows_its_object_when_lists_shift() {
+    let mut state = sample_state();
+    state
+        .sink_inputs
+        .push(stream(102, "game", 1, vec![volume::NORMAL]));
+    let mut app = App::default();
+    app.update_state(state.clone());
+    app.handle_key(KeyCode::Down);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('x')),
+        Some(Command::KillSinkInput(101))
+    );
+
+    state.sink_inputs.remove(0);
+    app.update_state(state);
+    assert_eq!(app.selection(), 0);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('x')),
+        Some(Command::KillSinkInput(101))
+    );
+}
+
+#[test]
+fn selection_moves_to_the_next_object_when_its_own_goes_away() {
+    let mut state = sample_state();
+    state
+        .sink_inputs
+        .push(stream(102, "game", 1, vec![volume::NORMAL]));
+    let mut app = App::default();
+    app.update_state(state.clone());
+    app.handle_key(KeyCode::Down);
+    state.sink_inputs.remove(1);
+    app.update_state(state);
+    assert_eq!(
+        app.handle_key(KeyCode::Char('x')),
+        Some(Command::KillSinkInput(102))
+    );
+}
