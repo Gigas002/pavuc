@@ -12,7 +12,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use libpulse_binding::callbacks::ListResult;
-use libpulse_binding::context::subscribe::InterestMaskSet;
+use libpulse_binding::context::subscribe::{Facility, InterestMaskSet};
 use libpulse_binding::context::{Context, FlagSet as ContextFlagSet, State as ContextState};
 use libpulse_binding::mainloop::standard::{IterateResult, Mainloop};
 use libpulse_binding::operation::{Operation, State as OperationState};
@@ -43,7 +43,10 @@ pub struct PulseClient {
     context: Rc<RefCell<Context>>,
     failures: Rc<RefCell<Vec<String>>>,
     state: Rc<RefCell<PulseState>>,
-    dirty: Rc<Cell<bool>>,
+    /// Object kinds ([`Kinds`]) to re-fetch on the next [`Self::iterate`].
+    dirty: Rc<Cell<Kinds>>,
+    /// Set by introspection callbacks when the snapshot was updated.
+    changed: Rc<Cell<bool>>,
     mainloop: Rc<RefCell<Mainloop>>,
 }
 
@@ -102,15 +105,15 @@ impl PulseClient {
         }
 
         let state = Rc::new(RefCell::new(PulseState::default()));
-        let dirty = Rc::new(Cell::new(true));
+        let dirty = Rc::new(Cell::new(Kinds::ALL));
 
-        // Whenever anything changes, mark the snapshot dirty so the next
-        // `iterate` re-introspects the server.
+        // Mark the kind of object that changed dirty, so the next `iterate`
+        // re-fetches just that list.
         {
             let dirty_cb = dirty.clone();
             context.borrow_mut().set_subscribe_callback(Some(Box::new(
-                move |_facility, _operation, _index| {
-                    dirty_cb.set(true);
+                move |facility, _operation, _index| {
+                    dirty_cb.set(dirty_cb.get() | Kinds::of(facility));
                 },
             )));
         }
@@ -121,6 +124,7 @@ impl PulseClient {
             failures: Rc::default(),
             state,
             dirty,
+            changed: Rc::new(Cell::new(false)),
             mainloop,
         };
 
@@ -136,12 +140,13 @@ impl PulseClient {
     /// Drives the main loop, dispatching any pending server events and
     /// refreshing the cached state when it has changed.
     ///
-    /// Call this once per UI tick.
+    /// Call this once per UI tick. Returns whether the snapshot changed since
+    /// the previous call, so a UI can skip redrawing when nothing happened.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Disconnected`] if the connection to the server is lost.
-    pub fn iterate(&mut self) -> Result<()> {
+    pub fn iterate(&mut self) -> Result<bool> {
         loop {
             let result = self.mainloop.borrow_mut().iterate(false);
             match result {
@@ -161,13 +166,13 @@ impl PulseClient {
             _ => {}
         }
 
-        if self.dirty.get() {
-            self.dirty.set(false);
-            self.refresh_all();
+        let dirty = self.dirty.replace(Kinds::NONE);
+        if dirty != Kinds::NONE {
+            self.refresh(dirty);
         }
 
         self.pending.retain(|op| !op.is_finished());
-        Ok(())
+        Ok(self.changed.replace(false))
     }
 
     /// Returns an owned snapshot of the current server state.
@@ -279,18 +284,33 @@ impl PulseClient {
 
     // --- Introspection -----------------------------------------------------
 
-    fn refresh_all(&mut self) {
-        self.refresh_server();
-        self.refresh_sinks();
-        self.refresh_sources();
-        self.refresh_sink_inputs();
-        self.refresh_source_outputs();
-        self.refresh_cards();
-        self.refresh_clients();
+    fn refresh(&mut self, kinds: Kinds) {
+        if kinds.contains(Kinds::SERVER) {
+            self.refresh_server();
+        }
+        if kinds.contains(Kinds::SINKS) {
+            self.refresh_sinks();
+        }
+        if kinds.contains(Kinds::SOURCES) {
+            self.refresh_sources();
+        }
+        if kinds.contains(Kinds::SINK_INPUTS) {
+            self.refresh_sink_inputs();
+        }
+        if kinds.contains(Kinds::SOURCE_OUTPUTS) {
+            self.refresh_source_outputs();
+        }
+        if kinds.contains(Kinds::CARDS) {
+            self.refresh_cards();
+        }
+        if kinds.contains(Kinds::CLIENTS) {
+            self.refresh_clients();
+        }
     }
 
     fn refresh_server(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let op = self
             .context
             .borrow()
@@ -299,12 +319,14 @@ impl PulseClient {
                 let mut state = state.borrow_mut();
                 state.default_sink = info.default_sink_name.as_ref().map(ToString::to_string);
                 state.default_source = info.default_source_name.as_ref().map(ToString::to_string);
+                changed.set(true);
             });
         self.pending.push(Box::new(op));
     }
 
     fn refresh_sinks(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(Vec::new()));
         let op = self
             .context
@@ -312,7 +334,10 @@ impl PulseClient {
             .introspect()
             .get_sink_info_list(move |res| match res {
                 ListResult::Item(info) => acc.borrow_mut().push(Device::from_sink(info)),
-                ListResult::End => state.borrow_mut().sinks = std::mem::take(&mut acc.borrow_mut()),
+                ListResult::End => {
+                    state.borrow_mut().sinks = std::mem::take(&mut acc.borrow_mut());
+                    changed.set(true);
+                }
                 ListResult::Error => {}
             });
         self.pending.push(Box::new(op));
@@ -320,6 +345,7 @@ impl PulseClient {
 
     fn refresh_sources(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(Vec::new()));
         let op = self
             .context
@@ -329,6 +355,7 @@ impl PulseClient {
                 ListResult::Item(info) => acc.borrow_mut().push(Device::from_source(info)),
                 ListResult::End => {
                     state.borrow_mut().sources = std::mem::take(&mut acc.borrow_mut());
+                    changed.set(true);
                 }
                 ListResult::Error => {}
             });
@@ -337,6 +364,7 @@ impl PulseClient {
 
     fn refresh_sink_inputs(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(Vec::new()));
         let op =
             self.context
@@ -346,6 +374,7 @@ impl PulseClient {
                     ListResult::Item(info) => acc.borrow_mut().push(Stream::from_sink_input(info)),
                     ListResult::End => {
                         state.borrow_mut().sink_inputs = std::mem::take(&mut acc.borrow_mut());
+                        changed.set(true);
                     }
                     ListResult::Error => {}
                 });
@@ -354,6 +383,7 @@ impl PulseClient {
 
     fn refresh_source_outputs(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(Vec::new()));
         let op = self
             .context
@@ -365,6 +395,7 @@ impl PulseClient {
                 }
                 ListResult::End => {
                     state.borrow_mut().source_outputs = std::mem::take(&mut acc.borrow_mut());
+                    changed.set(true);
                 }
                 ListResult::Error => {}
             });
@@ -373,6 +404,7 @@ impl PulseClient {
 
     fn refresh_cards(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(Vec::new()));
         let op = self
             .context
@@ -380,7 +412,10 @@ impl PulseClient {
             .introspect()
             .get_card_info_list(move |res| match res {
                 ListResult::Item(info) => acc.borrow_mut().push(Card::from_info(info)),
-                ListResult::End => state.borrow_mut().cards = std::mem::take(&mut acc.borrow_mut()),
+                ListResult::End => {
+                    state.borrow_mut().cards = std::mem::take(&mut acc.borrow_mut());
+                    changed.set(true);
+                }
                 ListResult::Error => {}
             });
         self.pending.push(Box::new(op));
@@ -388,6 +423,7 @@ impl PulseClient {
 
     fn refresh_clients(&mut self) {
         let state = self.state.clone();
+        let changed = self.changed.clone();
         let acc = Rc::new(RefCell::new(std::collections::HashMap::new()));
         let op = self
             .context
@@ -403,6 +439,7 @@ impl PulseClient {
                 }
                 ListResult::End => {
                     state.borrow_mut().clients = std::mem::take(&mut acc.borrow_mut());
+                    changed.set(true);
                 }
                 ListResult::Error => {}
             });
@@ -413,6 +450,52 @@ impl PulseClient {
 impl Drop for PulseClient {
     fn drop(&mut self) {
         self.context.borrow_mut().disconnect();
+    }
+}
+
+/// A set of object kinds to re-fetch, as bits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Kinds(u8);
+
+impl Kinds {
+    const NONE: Self = Self(0);
+    const SERVER: Self = Self(1);
+    const SINKS: Self = Self(1 << 1);
+    const SOURCES: Self = Self(1 << 2);
+    const SINK_INPUTS: Self = Self(1 << 3);
+    const SOURCE_OUTPUTS: Self = Self(1 << 4);
+    const CARDS: Self = Self(1 << 5);
+    const CLIENTS: Self = Self(1 << 6);
+    const ALL: Self = Self(0x7f);
+
+    /// The kinds to re-fetch after a subscription event for `facility`.
+    ///
+    /// Module and sample-cache events don't touch anything shown; an event
+    /// without a known facility re-fetches everything.
+    const fn of(facility: Option<Facility>) -> Self {
+        match facility {
+            Some(Facility::Server) => Self::SERVER,
+            Some(Facility::Sink) => Self::SINKS,
+            Some(Facility::Source) => Self::SOURCES,
+            Some(Facility::SinkInput) => Self::SINK_INPUTS,
+            Some(Facility::SourceOutput) => Self::SOURCE_OUTPUTS,
+            Some(Facility::Card) => Self::CARDS,
+            Some(Facility::Client) => Self::CLIENTS,
+            Some(Facility::Module | Facility::SampleCache) => Self::NONE,
+            None => Self::ALL,
+        }
+    }
+
+    const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+}
+
+impl std::ops::BitOr for Kinds {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
     }
 }
 

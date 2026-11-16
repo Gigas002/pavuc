@@ -47,10 +47,12 @@ fn channel_volumes_caps_at_channels_max() {
 #[ignore = "requires a running PulseAudio or pipewire-pulse server"]
 fn connect_snapshot_smoke() {
     let mut client = PulseClient::connect("libpavuc-test").expect("connect");
+    let mut changed = false;
     for _ in 0..20 {
-        client.iterate().expect("iterate");
+        changed |= client.iterate().expect("iterate");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    assert!(changed, "the first snapshot was never reported");
     let state = client.snapshot();
     // We only assert the call graph works; device counts vary by machine.
     let _ = (
@@ -101,4 +103,32 @@ fn refused_command_is_reported() {
         failures[0].starts_with("could not terminate the stream: "),
         "{failures:?}"
     );
+}
+
+#[test]
+fn events_refetch_only_their_kind() {
+    use libpulse_binding::context::subscribe::Facility;
+
+    use super::Kinds;
+
+    assert_eq!(Kinds::of(Some(Facility::SinkInput)), Kinds::SINK_INPUTS);
+    assert_eq!(Kinds::of(Some(Facility::Server)), Kinds::SERVER);
+    assert_eq!(Kinds::of(Some(Facility::Card)), Kinds::CARDS);
+    assert_eq!(Kinds::of(Some(Facility::Module)), Kinds::NONE);
+    assert_eq!(Kinds::of(None), Kinds::ALL);
+    let both = Kinds::SINKS | Kinds::CLIENTS;
+    assert!(both.contains(Kinds::SINKS));
+    assert!(both.contains(Kinds::CLIENTS));
+    assert!(!both.contains(Kinds::SOURCES));
+    for kind in [
+        Kinds::SERVER,
+        Kinds::SINKS,
+        Kinds::SOURCES,
+        Kinds::SINK_INPUTS,
+        Kinds::SOURCE_OUTPUTS,
+        Kinds::CARDS,
+        Kinds::CLIENTS,
+    ] {
+        assert!(Kinds::ALL.contains(kind));
+    }
 }

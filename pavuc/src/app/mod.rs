@@ -48,19 +48,29 @@ fn event_loop(
     let mut app = App::default();
     let mut client = Some(client);
     let mut next_attempt = Instant::now();
+    // Redraw only when something visible changed, not on every tick.
+    let mut redraw = true;
 
     while !app.should_quit {
         match &mut client {
             Some(connected) => match connected.iterate() {
-                Ok(()) => {
-                    app.update_state(connected.snapshot());
-                    app.report_failures(connected.take_failures());
+                Ok(changed) => {
+                    if changed {
+                        app.update_state(connected.snapshot());
+                        redraw = true;
+                    }
+                    let failures = connected.take_failures();
+                    if !failures.is_empty() {
+                        app.report_failures(failures);
+                        redraw = true;
+                    }
                 }
                 Err(error) => {
                     tracing::warn!("{error}; reconnecting");
                     client = None;
                     app.set_disconnected();
                     next_attempt = Instant::now() + RECONNECT_INTERVAL;
+                    redraw = true;
                 }
             },
             None if Instant::now() >= next_attempt => match connect(settings) {
@@ -68,6 +78,7 @@ fn event_loop(
                     tracing::info!("reconnected to the audio server");
                     client = Some(connected);
                     app.set_connected();
+                    redraw = true;
                 }
                 Err(error) => {
                     tracing::debug!("reconnect failed: {error}");
@@ -77,17 +88,24 @@ fn event_loop(
             None => {}
         }
 
-        terminal.draw(|frame| ui::render(frame, &app))?;
+        if redraw {
+            terminal.draw(|frame| ui::render(frame, &app))?;
+            redraw = false;
+        }
 
-        if event::poll(settings.tick)?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-        {
-            app.status.clear();
-            if let Some(command) = app.handle_key_event(key)
-                && let Some(connected) = &mut client
-            {
-                connected.execute(command);
+        if event::poll(settings.tick)? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    app.status.clear();
+                    if let Some(command) = app.handle_key_event(key)
+                        && let Some(connected) = &mut client
+                    {
+                        connected.execute(command);
+                    }
+                    redraw = true;
+                }
+                Event::Resize(..) => redraw = true,
+                _ => {}
             }
         }
     }
