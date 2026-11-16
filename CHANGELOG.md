@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.0 - Unreleased
 
 Changes from the audit in [docs/AUDIT.md](docs/AUDIT.md).
 
