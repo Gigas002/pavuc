@@ -55,3 +55,46 @@ fn rejects_invalid_log_level() {
     };
     assert!(resolve(&cli, None).is_err());
 }
+
+/// Regression: `tick_ms = 0` made the event loop spin a core at 100%.
+#[test]
+fn rejects_tick_outside_range() {
+    for ms in [0, 9, 1001, u64::MAX] {
+        let cli = CliOptions {
+            config: None,
+            log_level: None,
+            client_name: None,
+            tick_ms: Some(ms),
+        };
+        assert!(resolve(&cli, None).is_err(), "{ms} ms accepted");
+        let file = FileConfig {
+            tick_ms: Some(ms),
+            ..FileConfig::default()
+        };
+        assert!(
+            resolve(&cli_none(), Some(file)).is_err(),
+            "{ms} ms accepted"
+        );
+    }
+}
+
+#[test]
+fn accepts_tick_range_bounds() {
+    for ms in [10, 1000] {
+        let file = FileConfig {
+            tick_ms: Some(ms),
+            ..FileConfig::default()
+        };
+        let settings = resolve(&cli_none(), Some(file)).expect("resolve");
+        assert_eq!(settings.tick.as_millis(), u128::from(ms));
+    }
+}
+
+fn cli_none() -> CliOptions {
+    CliOptions {
+        config: None,
+        log_level: None,
+        client_name: None,
+        tick_ms: None,
+    }
+}

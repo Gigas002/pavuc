@@ -20,7 +20,7 @@ pub struct CliOptions {
     #[arg(long, value_name = "NAME")]
     pub client_name: Option<String>,
 
-    /// Event-loop tick interval in milliseconds.
+    /// Event-loop tick interval in milliseconds (10-1000).
     #[arg(long, value_name = "MS")]
     pub tick_ms: Option<u64>,
 }

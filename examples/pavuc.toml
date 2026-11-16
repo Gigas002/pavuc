@@ -7,5 +7,5 @@ client_name = "pavuc"
 # Log level: error, warn, info, debug, trace.
 log_level = "warn"
 
-# Event-loop tick interval in milliseconds (UI refresh cadence).
+# Event-loop tick interval in milliseconds (UI refresh cadence), 10-1000.
 tick_ms = 100

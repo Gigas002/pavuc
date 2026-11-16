@@ -7,6 +7,11 @@ use tracing::Level;
 use crate::cli::CliOptions;
 use crate::config::FileConfig;
 
+/// Allowed range for the event-loop tick, in milliseconds. Below the minimum
+/// the loop busy-waits (0 ms spins a core at 100%); above the maximum changes
+/// made by other programs take too long to show up.
+pub const TICK_MS_RANGE: std::ops::RangeInclusive<u64> = 10..=1000;
+
 /// Fully resolved runtime settings consumed below the resolver boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
@@ -32,7 +37,8 @@ impl Default for Settings {
 ///
 /// # Errors
 ///
-/// Returns an error if `log_level` cannot be parsed.
+/// Returns an error if `log_level` cannot be parsed or `tick_ms` is outside
+/// [`TICK_MS_RANGE`].
 pub fn resolve(cli: &CliOptions, file: Option<FileConfig>) -> Result<Settings, String> {
     let mut settings = Settings::default();
 
@@ -52,7 +58,7 @@ fn apply_file(settings: &mut Settings, file: &FileConfig) -> Result<(), String> 
         settings.log_level = parse_level(level)?;
     }
     if let Some(ms) = file.tick_ms {
-        settings.tick = Duration::from_millis(ms);
+        settings.tick = parse_tick(ms)?;
     }
     Ok(())
 }
@@ -65,9 +71,21 @@ fn apply_cli(settings: &mut Settings, cli: &CliOptions) -> Result<(), String> {
         settings.log_level = parse_level(level)?;
     }
     if let Some(ms) = cli.tick_ms {
-        settings.tick = Duration::from_millis(ms);
+        settings.tick = parse_tick(ms)?;
     }
     Ok(())
+}
+
+fn parse_tick(ms: u64) -> Result<Duration, String> {
+    if TICK_MS_RANGE.contains(&ms) {
+        Ok(Duration::from_millis(ms))
+    } else {
+        Err(format!(
+            "invalid tick_ms: {ms} (must be between {} and {})",
+            TICK_MS_RANGE.start(),
+            TICK_MS_RANGE.end()
+        ))
+    }
 }
 
 fn parse_level(value: &str) -> Result<Level, String> {
