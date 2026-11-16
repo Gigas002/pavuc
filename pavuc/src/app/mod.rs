@@ -60,4 +60,4 @@ fn event_loop(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

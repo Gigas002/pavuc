@@ -26,10 +26,14 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     for (row, index) in (offset..count).take(max_visible).enumerate() {
         let rect = Rect {
             x: area.x,
-            y: area.y + row as u16 * ITEM_HEIGHT,
+            y: area.y.saturating_add(row as u16 * ITEM_HEIGHT),
             width: area.width,
             height: ITEM_HEIGHT,
-        };
+        }
+        .intersection(area);
+        if rect.is_empty() {
+            break;
+        }
         render_item(frame, app, rect, index, index == selected);
     }
 }
