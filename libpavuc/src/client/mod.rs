@@ -35,12 +35,15 @@ impl<T: ?Sized> PendingOp for Operation<T> {
 }
 
 /// A live connection to the audio server.
+///
+/// Fields drop in declaration order: in-flight operations and the context
+/// must go before the main loop they were created on, so `mainloop` is last.
 pub struct PulseClient {
-    mainloop: Rc<RefCell<Mainloop>>,
+    pending: Vec<Box<dyn PendingOp>>,
     context: Rc<RefCell<Context>>,
     state: Rc<RefCell<PulseState>>,
     dirty: Rc<Cell<bool>>,
-    pending: Vec<Box<dyn PendingOp>>,
+    mainloop: Rc<RefCell<Mainloop>>,
 }
 
 impl PulseClient {
@@ -112,11 +115,11 @@ impl PulseClient {
         }
 
         let mut client = Self {
-            mainloop,
+            pending: Vec::new(),
             context,
             state,
             dirty,
-            pending: Vec::new(),
+            mainloop,
         };
 
         let op = client
