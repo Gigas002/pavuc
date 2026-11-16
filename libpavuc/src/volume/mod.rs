@@ -12,6 +12,9 @@ pub const NORMAL: u32 = 0x1_0000;
 /// Raw value corresponding to a muted channel (`PA_VOLUME_MUTED`).
 pub const MUTED: u32 = 0;
 
+/// Largest valid raw volume (`PA_VOLUME_MAX`); the server rejects anything above.
+pub const MAX: u32 = u32::MAX / 2;
+
 /// Maximum percentage exposed in the UI, matching pavucontrol's `PA_VOLUME_UI_MAX`
 /// (roughly +11 dB).
 pub const UI_MAX_PERCENT: u32 = 153;
@@ -22,10 +25,12 @@ pub fn raw_to_percent(raw: u32) -> u32 {
     ((u64::from(raw) * 100 + u64::from(NORMAL) / 2) / u64::from(NORMAL)) as u32
 }
 
-/// Converts a percentage of [`NORMAL`] into a raw PulseAudio volume.
+/// Converts a percentage of [`NORMAL`] into a raw PulseAudio volume,
+/// saturating at [`MAX`].
 #[must_use]
 pub fn percent_to_raw(percent: u32) -> u32 {
-    ((u64::from(percent) * u64::from(NORMAL)) / 100) as u32
+    let raw = (u64::from(percent) * u64::from(NORMAL)) / 100;
+    u32::try_from(raw).map_or(MAX, |raw| raw.min(MAX))
 }
 
 /// Clamps a percentage to the inclusive range `0..=UI_MAX_PERCENT`.
@@ -63,7 +68,7 @@ pub fn scale(volumes: &[u32], percent: u32) -> Vec<u32> {
         .iter()
         .map(|&v| {
             let scaled = (u64::from(v) * target + max / 2) / max;
-            u32::try_from(scaled).unwrap_or(u32::MAX)
+            u32::try_from(scaled).map_or(MAX, |raw| raw.min(MAX))
         })
         .collect()
 }

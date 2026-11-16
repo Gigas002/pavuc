@@ -62,3 +62,12 @@ fn step_never_moves_against_the_key() {
     assert_eq!(step_percent(200, 5), 200);
     assert_eq!(step_percent(200, -5), 195);
 }
+
+/// Regression: large percentages wrapped around instead of saturating.
+#[test]
+fn percent_to_raw_saturates_at_max() {
+    assert_eq!(percent_to_raw(u32::MAX), MAX);
+    assert_eq!(percent_to_raw(10_000_000), MAX);
+    assert_eq!(percent_to_raw(1_000_000), 655_360_000);
+    assert!(scale(&[NORMAL, 1], u32::MAX).iter().all(|&v| v <= MAX));
+}
