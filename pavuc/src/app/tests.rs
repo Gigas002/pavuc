@@ -409,3 +409,23 @@ fn selection_moves_to_the_next_object_when_its_own_goes_away() {
         Some(Command::KillSinkInput(102))
     );
 }
+
+/// Regression: the Recording route popup hid monitor sources and always
+/// highlighted the first entry, so Enter on a stream recording a monitor
+/// moved it to the microphone.
+#[test]
+fn recording_popup_offers_monitors_and_preselects_current_source() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Char('2'));
+    app.handle_key(KeyCode::Enter);
+    let popup = app.popup.as_ref().expect("popup");
+    assert_eq!(popup.items.len(), 2);
+    assert_eq!(popup.items[popup.selected].value, "11");
+    assert_eq!(
+        app.handle_key(KeyCode::Enter),
+        Some(Command::MoveSourceOutput {
+            index: 200,
+            source: 11
+        })
+    );
+}

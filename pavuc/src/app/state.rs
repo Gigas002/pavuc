@@ -356,7 +356,6 @@ impl App {
                     .state
                     .sources
                     .iter()
-                    .filter(|d| !d.monitor)
                     .map(|d| PopupItem {
                         label: d.description.clone(),
                         value: d.index.to_string(),
@@ -366,7 +365,12 @@ impl App {
                 Popup {
                     kind: PopupKind::MoveSourceOutput(s.index),
                     title: format!("Move \"{}\" to input:", s.name),
-                    selected: 0,
+                    selected: self
+                        .state
+                        .sources
+                        .iter()
+                        .position(|d| d.index == s.device)
+                        .unwrap_or(0),
                     items,
                 }
             }),
