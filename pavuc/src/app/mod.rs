@@ -27,9 +27,11 @@ const RECONNECT_INTERVAL: Duration = Duration::from_secs(1);
 pub fn run(settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
     let client = connect(&settings)?;
 
+    crate::logger::pause_stderr(true);
     let mut terminal = ratatui::init();
     let result = event_loop(&mut terminal, client, &settings);
     ratatui::restore();
+    crate::logger::pause_stderr(false);
     result
 }
 
@@ -55,7 +57,7 @@ fn event_loop(
                     app.report_failures(connected.take_failures());
                 }
                 Err(error) => {
-                    tracing::info!("{error}; reconnecting");
+                    tracing::warn!("{error}; reconnecting");
                     client = None;
                     app.set_disconnected();
                     next_attempt = Instant::now() + RECONNECT_INTERVAL;

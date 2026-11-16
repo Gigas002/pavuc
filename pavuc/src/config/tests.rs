@@ -35,6 +35,7 @@ tick_ms = 200
         FileConfig {
             client_name: Some("custom".to_string()),
             log_level: Some("info".to_string()),
+            log_file: None,
             tick_ms: Some(200),
         }
     );

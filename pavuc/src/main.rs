@@ -28,7 +28,10 @@ fn main() {
         }
     };
 
-    logger::init(&settings);
+    if let Err(error) = logger::init(&settings) {
+        eprintln!("pavuc: {error}");
+        std::process::exit(1);
+    }
 
     if let Err(error) = app::run(settings) {
         tracing::error!("{error}");

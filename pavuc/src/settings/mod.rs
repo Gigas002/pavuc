@@ -1,5 +1,6 @@
 //! Unified settings resolver: CLI > config file > defaults.
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use tracing::Level;
@@ -17,8 +18,10 @@ pub const TICK_MS_RANGE: std::ops::RangeInclusive<u64> = 10..=1000;
 pub struct Settings {
     /// Application name reported to the audio server.
     pub client_name: String,
-    /// Maximum log level emitted to stderr.
+    /// Maximum log level emitted.
     pub log_level: Level,
+    /// File to append logs to; stderr when `None`.
+    pub log_file: Option<PathBuf>,
     /// How long to wait for input before redrawing.
     pub tick: Duration,
 }
@@ -28,6 +31,7 @@ impl Default for Settings {
         Self {
             client_name: "pavuc".to_string(),
             log_level: Level::WARN,
+            log_file: None,
             tick: Duration::from_millis(100),
         }
     }
@@ -57,6 +61,9 @@ fn apply_file(settings: &mut Settings, file: &FileConfig) -> Result<(), String> 
     if let Some(level) = &file.log_level {
         settings.log_level = parse_level(level)?;
     }
+    if let Some(path) = &file.log_file {
+        settings.log_file = Some(path.clone());
+    }
     if let Some(ms) = file.tick_ms {
         settings.tick = parse_tick(ms)?;
     }
@@ -69,6 +76,9 @@ fn apply_cli(settings: &mut Settings, cli: &CliOptions) -> Result<(), String> {
     }
     if let Some(level) = &cli.log_level {
         settings.log_level = parse_level(level)?;
+    }
+    if let Some(path) = &cli.log_file {
+        settings.log_file = Some(path.clone());
     }
     if let Some(ms) = cli.tick_ms {
         settings.tick = parse_tick(ms)?;

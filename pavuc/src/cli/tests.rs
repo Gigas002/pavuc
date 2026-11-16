@@ -9,6 +9,7 @@ fn parses_defaults() {
     let cli = CliOptions::parse_from(["pavuc"]);
     assert!(cli.config.is_none());
     assert!(cli.log_level.is_none());
+    assert!(cli.log_file.is_none());
     assert!(cli.client_name.is_none());
     assert!(cli.tick_ms.is_none());
 }
@@ -21,6 +22,8 @@ fn parses_overrides() {
         "/tmp/pavuc.toml",
         "--log-level",
         "debug",
+        "--log-file",
+        "/tmp/pavuc.log",
         "--client-name",
         "my-pavuc",
         "--tick-ms",
@@ -28,6 +31,7 @@ fn parses_overrides() {
     ]);
     assert_eq!(cli.config, Some(PathBuf::from("/tmp/pavuc.toml")));
     assert_eq!(cli.log_level.as_deref(), Some("debug"));
+    assert_eq!(cli.log_file, Some(PathBuf::from("/tmp/pavuc.log")));
     assert_eq!(cli.client_name.as_deref(), Some("my-pavuc"));
     assert_eq!(cli.tick_ms, Some(250));
 }
