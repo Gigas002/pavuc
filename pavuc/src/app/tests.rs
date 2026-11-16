@@ -495,3 +495,21 @@ fn stream_without_volume_refuses_volume_keys() {
     assert_eq!(app.handle_key(KeyCode::Right), None);
     assert!(app.status.contains("no volume control"));
 }
+
+#[test]
+fn keys_that_do_not_apply_explain_why() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Char('3'));
+    assert_eq!(app.handle_key(KeyCode::Char('x')), None);
+    assert!(app.status.contains("only applies to streams"));
+    app.handle_key(KeyCode::Char('5'));
+    assert_eq!(app.handle_key(KeyCode::Char('m')), None);
+    assert!(app.status.contains("no volume"));
+}
+
+#[test]
+fn kill_names_the_stream() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Char('x'));
+    assert_eq!(app.status, "Terminated music");
+}

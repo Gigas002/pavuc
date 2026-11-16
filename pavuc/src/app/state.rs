@@ -309,7 +309,7 @@ impl App {
         }
     }
 
-    fn toggle_mute(&self) -> Option<Command> {
+    fn toggle_mute(&mut self) -> Option<Command> {
         let sel = self.selection();
         match self.current_tab() {
             Tab::Playback => self
@@ -337,7 +337,10 @@ impl App {
                 index: d.index,
                 mute: !d.mute,
             }),
-            Tab::Configuration => None,
+            Tab::Configuration => {
+                self.status = "Cards have no volume; mute a device instead".to_string();
+                None
+            }
         }
     }
 
@@ -361,21 +364,26 @@ impl App {
         }
     }
 
-    fn kill_stream(&self) -> Option<Command> {
+    fn kill_stream(&mut self) -> Option<Command> {
         let sel = self.selection();
-        match self.current_tab() {
+        let (name, command) = match self.current_tab() {
             Tab::Playback => self
                 .state
                 .sink_inputs
                 .get(sel)
-                .map(|s| Command::KillSinkInput(s.index)),
+                .map(|s| (s.name.clone(), Command::KillSinkInput(s.index)))?,
             Tab::Recording => self
                 .state
                 .source_outputs
                 .get(sel)
-                .map(|s| Command::KillSourceOutput(s.index)),
-            _ => None,
-        }
+                .map(|s| (s.name.clone(), Command::KillSourceOutput(s.index)))?,
+            _ => {
+                self.status = "Terminate only applies to streams".to_string();
+                return None;
+            }
+        };
+        self.status = format!("Terminated {name}");
+        Some(command)
     }
 
     fn open_popup(&mut self) {
