@@ -38,3 +38,4 @@ A faithful, keyboard-driven port of pavucontrol's functionality:
 | `Enter`                      | Route stream / select port / select profile (popup) |
 | `x`                          | Kill the selected stream (Playback/Recording)       |
 | `q` / `Esc`                  | Quit (or close an open popup)                       |
+| `Ctrl+C`                     | Quit                                                |

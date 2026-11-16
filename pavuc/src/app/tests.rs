@@ -429,3 +429,30 @@ fn recording_popup_offers_monitors_and_preselects_current_source() {
         })
     );
 }
+
+/// Regression: in raw mode Ctrl+C arrives as a key, and pavuc ignored it.
+#[test]
+fn ctrl_c_quits_even_from_a_popup() {
+    use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Enter);
+    let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    assert_eq!(app.handle_key_event(ctrl_c), None);
+    assert!(app.should_quit);
+}
+
+#[test]
+fn modified_keys_do_not_trigger_plain_actions() {
+    use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
+    let mut app = sample_app();
+    for modifiers in [KeyModifiers::CONTROL, KeyModifiers::ALT] {
+        let key = KeyEvent::new(KeyCode::Char('x'), modifiers);
+        assert_eq!(app.handle_key_event(key), None);
+    }
+    let shift_tab = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
+    app.handle_key_event(shift_tab);
+    assert_eq!(app.current_tab(), super::Tab::Configuration);
+    let plain_x = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+    assert_eq!(app.handle_key_event(plain_x), None);
+    assert!(!app.should_quit);
+}

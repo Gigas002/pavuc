@@ -1,7 +1,7 @@
 //! Application state and input handling for the pavuc TUI.
 
 use libpavuc::{Command, PulseState, volume};
-use ratatui::crossterm::event::KeyCode;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// The five tabs, matching pavucontrol exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +167,24 @@ impl App {
 
     fn set_selection(&mut self, value: usize) {
         self.selected[self.tab] = value;
+    }
+
+    /// Handles a key event (with modifiers) and returns the command to send.
+    ///
+    /// Ctrl+C quits from anywhere. Other Ctrl/Alt chords are ignored so they
+    /// don't trigger the plain key's action (Ctrl+X must not kill a stream).
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> Option<Command> {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            self.should_quit = true;
+            return None;
+        }
+        if key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            return None;
+        }
+        self.handle_key(key.code)
     }
 
     /// Handles a key press and returns the command to send, if any.
