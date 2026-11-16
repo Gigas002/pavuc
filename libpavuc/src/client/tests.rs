@@ -4,34 +4,38 @@
 //! Those paths are covered by the ignored smoke test below (run manually when a
 //! server is available). Pure helpers are tested here without I/O.
 
-use super::{PulseClient, uniform_volume};
+use libpulse_binding::volume::ChannelVolumes;
+
+use super::{PulseClient, channel_volumes};
 use crate::volume;
 
 #[test]
-fn connect_fn_matches_public_api() {
+fn connect_fns_match_public_api() {
     let _connect: fn(&str) -> Result<PulseClient, crate::Error> = PulseClient::connect;
+    let _connect_to: fn(&str, &str) -> Result<PulseClient, crate::Error> = PulseClient::connect_to;
 }
 
 #[test]
-fn uniform_volume_clamps_zero_channels_to_one() {
-    let cv = uniform_volume(0, volume::NORMAL);
-    assert_eq!(cv.len(), 1);
-    assert_eq!(cv.get()[0].0, volume::NORMAL);
-}
-
-#[test]
-fn uniform_volume_sets_all_channels() {
-    let cv = uniform_volume(2, volume::percent_to_raw(50));
+fn channel_volumes_keeps_each_channel() {
+    let cv = channel_volumes(&[volume::NORMAL, volume::NORMAL / 2]);
     assert_eq!(cv.len(), 2);
-    for channel in cv.get() {
-        assert_eq!(channel.0, volume::percent_to_raw(50));
-    }
+    assert_eq!(cv.get()[0].0, volume::NORMAL);
+    assert_eq!(cv.get()[1].0, volume::NORMAL / 2);
 }
 
 #[test]
-fn uniform_volume_uses_raw_value_directly() {
-    let cv = uniform_volume(1, 42_000);
-    assert_eq!(cv.get()[0].0, 42_000);
+fn channel_volumes_turns_empty_into_one_muted_channel() {
+    let cv = channel_volumes(&[]);
+    assert_eq!(cv.len(), 1);
+    assert_eq!(cv.get()[0].0, volume::MUTED);
+}
+
+#[test]
+fn channel_volumes_caps_at_channels_max() {
+    let raw = vec![42; 64];
+    let cv = channel_volumes(&raw);
+    assert_eq!(cv.len(), ChannelVolumes::CHANNELS_MAX);
+    assert!(cv.get().iter().all(|v| v.0 == 42));
 }
 
 /// Manual smoke test — requires PulseAudio or `pipewire-pulse` running.
@@ -43,10 +47,12 @@ fn uniform_volume_uses_raw_value_directly() {
 #[ignore = "requires a running PulseAudio or pipewire-pulse server"]
 fn connect_snapshot_smoke() {
     let mut client = PulseClient::connect("libpavuc-test").expect("connect");
+    let mut changed = false;
     for _ in 0..20 {
-        client.iterate().expect("iterate");
+        changed |= client.iterate().expect("iterate");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    assert!(changed, "the first snapshot was never reported");
     let state = client.snapshot();
     // We only assert the call graph works; device counts vary by machine.
     let _ = (
@@ -56,4 +62,73 @@ fn connect_snapshot_smoke() {
         state.source_outputs.len(),
         state.cards.len(),
     );
+}
+
+/// Regression: a refused connection was reported as "Access denied", because
+/// `pa_context_connect`'s `-1` return was read as an error code.
+#[test]
+fn refused_connection_reports_the_real_reason() {
+    let dir = std::env::temp_dir().join(format!("libpavuc-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let socket = dir.join("no-server");
+    let error = PulseClient::connect_to("libpavuc-test", &format!("unix:{}", socket.display()))
+        .err()
+        .expect("connected to a socket that does not exist");
+    let _ = std::fs::remove_dir(&dir);
+    let message = error.to_string();
+    assert!(!message.contains("Access denied"), "{message}");
+    assert!(
+        message.contains("Connection refused") || message.contains("No such"),
+        "{message}"
+    );
+}
+
+/// Manual check that refused commands are reported — requires a server.
+#[test]
+#[ignore = "requires a running PulseAudio or pipewire-pulse server"]
+fn refused_command_is_reported() {
+    let mut client = PulseClient::connect("libpavuc-test").expect("connect");
+    client.execute(crate::Command::KillSinkInput(u32::MAX - 1));
+    let mut failures = Vec::new();
+    for _ in 0..100 {
+        client.iterate().expect("iterate");
+        failures.extend(client.take_failures());
+        if !failures.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(
+        failures[0].starts_with("could not terminate the stream: "),
+        "{failures:?}"
+    );
+}
+
+#[test]
+fn events_refetch_only_their_kind() {
+    use libpulse_binding::context::subscribe::Facility;
+
+    use super::Kinds;
+
+    assert_eq!(Kinds::of(Some(Facility::SinkInput)), Kinds::SINK_INPUTS);
+    assert_eq!(Kinds::of(Some(Facility::Server)), Kinds::SERVER);
+    assert_eq!(Kinds::of(Some(Facility::Card)), Kinds::CARDS);
+    assert_eq!(Kinds::of(Some(Facility::Module)), Kinds::NONE);
+    assert_eq!(Kinds::of(None), Kinds::ALL);
+    let both = Kinds::SINKS | Kinds::CLIENTS;
+    assert!(both.contains(Kinds::SINKS));
+    assert!(both.contains(Kinds::CLIENTS));
+    assert!(!both.contains(Kinds::SOURCES));
+    for kind in [
+        Kinds::SERVER,
+        Kinds::SINKS,
+        Kinds::SOURCES,
+        Kinds::SINK_INPUTS,
+        Kinds::SOURCE_OUTPUTS,
+        Kinds::CARDS,
+        Kinds::CLIENTS,
+    ] {
+        assert!(Kinds::ALL.contains(kind));
+    }
 }

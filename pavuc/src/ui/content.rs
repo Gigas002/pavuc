@@ -11,7 +11,11 @@ use crate::utils;
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let count = app.item_count(app.current_tab());
     if count == 0 {
-        let msg = empty_message(app.current_tab());
+        let msg = if app.disconnected {
+            "Waiting for the audio server (PulseAudio or pipewire-pulse)..."
+        } else {
+            empty_message(app.current_tab())
+        };
         let para = Paragraph::new(msg)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center);
@@ -26,10 +30,14 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     for (row, index) in (offset..count).take(max_visible).enumerate() {
         let rect = Rect {
             x: area.x,
-            y: area.y + row as u16 * ITEM_HEIGHT,
+            y: area.y.saturating_add(row as u16 * ITEM_HEIGHT),
             width: area.width,
             height: ITEM_HEIGHT,
-        };
+        }
+        .intersection(area);
+        if rect.is_empty() {
+            break;
+        }
         render_item(frame, app, rect, index, index == selected);
     }
 }

@@ -8,11 +8,14 @@ use serde::Deserialize;
 ///
 /// Every field is optional; precedence is applied in [`crate::settings`].
 #[derive(Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct FileConfig {
     /// Application name reported to the audio server.
     pub client_name: Option<String>,
     /// Log level string (`error`, `warn`, `info`, `debug`, `trace`).
     pub log_level: Option<String>,
+    /// File to append logs to instead of stderr.
+    pub log_file: Option<PathBuf>,
     /// Event-loop tick interval in milliseconds.
     pub tick_ms: Option<u64>,
 }

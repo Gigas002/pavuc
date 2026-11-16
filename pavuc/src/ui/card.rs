@@ -26,10 +26,10 @@ pub fn render_stream(
         Some(c) => format!("{c}  {arrow} {target}"),
         None => format!("{arrow} {target}"),
     };
-    let gauge = if stream.has_volume {
-        Some((stream.volume_percent(), stream.mute, stream.volume_writable))
+    let body = if stream.has_volume {
+        Body::Gauge(stream.volume_percent(), stream.mute, stream.volume_writable)
     } else {
-        None
+        Body::Note("No volume control")
     };
     render(
         frame,
@@ -37,7 +37,7 @@ pub fn render_stream(
         &stream.name,
         right_status(stream.mute, false),
         &subtitle,
-        gauge,
+        body,
         selected,
     );
 }
@@ -64,7 +64,7 @@ pub fn render_device(
         &device.description,
         right_status(device.mute, default),
         &subtitle,
-        Some((device.volume_percent(), device.mute, true)),
+        Body::Gauge(device.volume_percent(), device.mute, true),
         selected,
     );
 }
@@ -81,19 +81,27 @@ pub fn render_configuration(frame: &mut Frame, area: Rect, card: &libpavuc::Card
         &card.description,
         Vec::new(),
         &format!("Profile: {profile}"),
-        None,
+        Body::Note("Press Enter to change"),
         selected,
     );
 }
 
-/// Shared card renderer: bordered block with a subtitle line and an optional volume gauge.
+/// The second line of a card.
+enum Body {
+    /// Volume gauge: percent, muted, writable.
+    Gauge(u32, bool, bool),
+    /// A dim note instead of a gauge.
+    Note(&'static str),
+}
+
+/// Shared card renderer: bordered block with a subtitle line and a body line.
 fn render(
     frame: &mut Frame,
     area: Rect,
     title: &str,
     right: Vec<Span<'static>>,
     subtitle: &str,
-    gauge: Option<(u32, bool, bool)>,
+    body: Body,
     selected: bool,
 ) {
     let border_style = if selected {
@@ -119,7 +127,7 @@ fn render(
         Paragraph::new(subtitle.to_string()).style(Style::default().fg(Color::Gray));
     frame.render_widget(subtitle_widget, rows[0]);
 
-    if let Some((percent, muted, writable)) = gauge {
+    if let Body::Gauge(percent, muted, writable) = body {
         let ratio = (f64::from(percent) / f64::from(volume::UI_MAX_PERCENT)).clamp(0.0, 1.0);
         let (color, label) = if muted {
             (Color::DarkGray, format!("{percent}%  muted"))
@@ -135,8 +143,8 @@ fn render(
             .ratio(ratio)
             .label(Span::from(label).fg(Color::White).bold());
         frame.render_widget(g, rows[1]);
-    } else if let Some(area) = rows.get(1) {
-        let hint = Paragraph::new("Press Enter to change").style(
+    } else if let (Body::Note(note), Some(area)) = (body, rows.get(1)) {
+        let hint = Paragraph::new(note).style(
             Style::default()
                 .fg(Color::DarkGray)
                 .add_modifier(Modifier::ITALIC),

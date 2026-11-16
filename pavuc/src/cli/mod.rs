@@ -16,11 +16,16 @@ pub struct CliOptions {
     #[arg(short, long, value_name = "LEVEL")]
     pub log_level: Option<String>,
 
+    /// Append logs to this file instead of stderr (stderr logging pauses
+    /// while the TUI is on screen).
+    #[arg(long, value_name = "FILE")]
+    pub log_file: Option<PathBuf>,
+
     /// Application name reported to the audio server.
     #[arg(long, value_name = "NAME")]
     pub client_name: Option<String>,
 
-    /// Event-loop tick interval in milliseconds.
+    /// Event-loop tick interval in milliseconds (10-1000).
     #[arg(long, value_name = "MS")]
     pub tick_ms: Option<u64>,
 }

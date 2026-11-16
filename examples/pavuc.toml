@@ -7,5 +7,9 @@ client_name = "pavuc"
 # Log level: error, warn, info, debug, trace.
 log_level = "warn"
 
-# Event-loop tick interval in milliseconds (UI refresh cadence).
+# Append logs to this file instead of stderr. Without it, log lines are
+# dropped while the TUI is on screen (they would draw over it).
+# log_file = "/home/me/.local/state/pavuc.log"
+
+# Event-loop tick interval in milliseconds (UI refresh cadence), 10-1000.
 tick_ms = 100

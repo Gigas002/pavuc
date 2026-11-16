@@ -13,7 +13,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         return;
     };
 
-    let height = (popup.items.len() as u16 + 2).min(frame.area().height.saturating_sub(4));
+    // Items plus the two border rows, never taller than the screen minus a margin.
+    let height = u16::try_from(popup.items.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(2)
+        .min(frame.area().height.saturating_sub(4));
     let area = utils::centered_rect(frame.area(), 60, height.max(3));
     frame.render_widget(Clear, area);
 

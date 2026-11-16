@@ -5,14 +5,13 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 license = "GPL-3.0-or-later"
-homepage = "https://github.com/pavuc/pavuc"
-description = "A pavucontrol analogue TUI"
 keywords = ["pulseaudio", "tui", "ratatui", "volume", "pavucontrol"]
-repository = "https://github.com/pavuc/pavuc"
-version = "0.1.0"
+repository = "https://github.com/Gigas002/pavuc"
+readme = "README.md"
+version = "0.2.0"
 
 [workspace.dependencies]
-libpavuc = { path = "libpavuc", version = "0.1.0" }
+libpavuc = { path = "libpavuc", version = "0.2.0" }
 libpulse-binding = "2"
 ratatui = { version = "0.30", features = ["crossterm"] }
 clap = { version = "4", features = ["derive"] }

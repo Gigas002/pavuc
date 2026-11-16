@@ -3,10 +3,11 @@ name = "libpavuc"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-homepage.workspace = true
 description = "PulseAudio control library backing pavuc, the TUI pavucontrol analogue"
 keywords.workspace = true
 repository.workspace = true
+readme.workspace = true
+categories = ["multimedia::audio", "api-bindings"]
 
 [dependencies]
 libpulse-binding.workspace = true

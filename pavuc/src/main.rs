@@ -4,6 +4,8 @@
 //! same five tabs pavucontrol does: Playback, Recording, Output Devices,
 //! Input Devices and Configuration.
 
+#![forbid(unsafe_code)]
+
 mod app;
 mod cli;
 mod config;
@@ -28,7 +30,10 @@ fn main() {
         }
     };
 
-    logger::init(&settings);
+    if let Err(error) = logger::init(&settings) {
+        eprintln!("pavuc: {error}");
+        std::process::exit(1);
+    }
 
     if let Err(error) = app::run(settings) {
         tracing::error!("{error}");

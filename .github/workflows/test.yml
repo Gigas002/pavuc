@@ -40,6 +40,32 @@ jobs:
       - name: Run tests (${{ matrix.name }})
         run: cargo test ${{ matrix.cargo_args }}
 
+  # The client's live tests (marked #[ignore]) need a real server: start a
+  # throwaway PulseAudio with a null sink and run them against it.
+  live-server:
+    name: test (live server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpulse-dev pulseaudio pulseaudio-utils
+
+      - name: Build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-live-server
+
+      - name: Start PulseAudio
+        run: |
+          pulseaudio --start --exit-idle-time=-1 --daemonize=yes
+          pactl load-module module-null-sink sink_name=ci
+          pactl info
+
+      - name: Run live-server tests
+        run: cargo test --workspace -- --ignored
+
   codecov:
     needs: test
     strategy:

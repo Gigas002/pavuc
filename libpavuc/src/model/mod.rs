@@ -103,10 +103,11 @@ pub struct Device {
 }
 
 impl Device {
-    /// Average volume across channels as a rounded percentage.
+    /// Volume of the loudest channel as a rounded percentage, which is what
+    /// pavucontrol's slider shows.
     #[must_use]
     pub fn volume_percent(&self) -> u32 {
-        volume::raw_to_percent(average(&self.volume))
+        volume::raw_to_percent(volume::max(&self.volume))
     }
 
     pub(crate) fn from_sink(info: &SinkInfo) -> Self {
@@ -174,10 +175,11 @@ pub struct Stream {
 }
 
 impl Stream {
-    /// Average volume across channels as a rounded percentage.
+    /// Volume of the loudest channel as a rounded percentage, which is what
+    /// pavucontrol's slider shows.
     #[must_use]
     pub fn volume_percent(&self) -> u32 {
-        volume::raw_to_percent(average(&self.volume))
+        volume::raw_to_percent(volume::max(&self.volume))
     }
 
     pub(crate) fn from_sink_input(info: &SinkInputInfo) -> Self {
@@ -322,14 +324,6 @@ impl PulseState {
     pub fn is_default_source(&self, device: &Device) -> bool {
         self.default_source.as_deref() == Some(device.name.as_str())
     }
-}
-
-fn average(volume: &[u32]) -> u32 {
-    if volume.is_empty() {
-        return 0;
-    }
-    let sum: u64 = volume.iter().map(|&v| u64::from(v)).sum();
-    (sum / volume.len() as u64) as u32
 }
 
 fn channels_to_vec(cv: &ChannelVolumes) -> Vec<u32> {

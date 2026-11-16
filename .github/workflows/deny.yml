@@ -14,7 +14,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-deny
-        run: cargo install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
 
+      # All checks, as docs/ARCHITECTURE.md §8 requires: advisories, bans,
+      # licenses and sources.
       - name: Run cargo deny
-        run: cargo deny check licenses
+        run: cargo deny check
