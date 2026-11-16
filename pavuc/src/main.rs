@@ -4,6 +4,8 @@
 //! same five tabs pavucontrol does: Playback, Recording, Output Devices,
 //! Input Devices and Configuration.
 
+#![forbid(unsafe_code)]
+
 mod app;
 mod cli;
 mod config;
