@@ -513,3 +513,20 @@ fn kill_names_the_stream() {
     app.handle_key(KeyCode::Char('x'));
     assert_eq!(app.status, "Terminated music");
 }
+
+/// Regression: a popup outlived its stream, and Enter then sent a move for
+/// an object that no longer existed.
+#[test]
+fn popup_closes_when_its_target_goes_away() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Enter);
+    let mut state = sample_state();
+    app.update_state(state.clone());
+    assert!(app.popup.is_some(), "an unrelated update closed the popup");
+
+    state.sink_inputs.remove(0);
+    app.update_state(state);
+    assert!(app.popup.is_none());
+    assert!(app.status.contains("went away"));
+    assert_eq!(app.handle_key(KeyCode::Enter), None);
+}

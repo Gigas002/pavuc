@@ -122,10 +122,11 @@ impl App {
                 self.selected[i] = count - 1;
             }
         }
-        if let Some(popup) = &mut self.popup
-            && popup.selected >= popup.items.len()
+        if let Some(popup) = &self.popup
+            && !self.popup_target_exists(&popup.kind)
         {
-            popup.selected = popup.items.len().saturating_sub(1);
+            self.popup = None;
+            self.status = "Closed the menu: its stream or device went away".to_string();
         }
     }
 
@@ -162,6 +163,17 @@ impl App {
                 .next()
                 .map(|first| first.to_uppercase().chain(chars).collect())
                 .unwrap_or_default();
+        }
+    }
+
+    /// Whether the object a popup applies to is still in the snapshot.
+    fn popup_target_exists(&self, kind: &PopupKind) -> bool {
+        match *kind {
+            PopupKind::MoveSinkInput(id) => self.position_of(Tab::Playback, id).is_some(),
+            PopupKind::MoveSourceOutput(id) => self.position_of(Tab::Recording, id).is_some(),
+            PopupKind::SinkPort(id) => self.position_of(Tab::Output, id).is_some(),
+            PopupKind::SourcePort(id) => self.position_of(Tab::Input, id).is_some(),
+            PopupKind::CardProfile(id) => self.position_of(Tab::Configuration, id).is_some(),
         }
     }
 
