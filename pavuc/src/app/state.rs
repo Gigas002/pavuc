@@ -259,6 +259,10 @@ impl App {
         match self.current_tab() {
             Tab::Playback => {
                 let s = self.state.sink_inputs.get(sel)?;
+                if !s.has_volume {
+                    self.status = "This stream has no volume control".to_string();
+                    return None;
+                }
                 if !s.volume_writable {
                     self.status = "This stream's volume is not adjustable".to_string();
                     return None;
@@ -271,6 +275,10 @@ impl App {
             }
             Tab::Recording => {
                 let s = self.state.source_outputs.get(sel)?;
+                if !s.has_volume {
+                    self.status = "This stream has no volume control".to_string();
+                    return None;
+                }
                 if !s.volume_writable {
                     self.status = "This stream's volume is not adjustable".to_string();
                     return None;

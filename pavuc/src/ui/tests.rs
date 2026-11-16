@@ -135,3 +135,19 @@ fn disconnected_screen_says_it_is_waiting() {
     assert!(screen.contains("Waiting for the audio server"));
     assert!(screen.contains("reconnecting"));
 }
+
+/// Regression: a stream without volume control showed "Press Enter to
+/// change", the Configuration tab's hint, where its gauge would be.
+#[test]
+fn stream_without_volume_says_so() {
+    let mut app = sample_app();
+    let mut state = app.state.clone();
+    state.sink_inputs[0].has_volume = false;
+    app.update_state(state);
+    let screen = draw(&app, 100, 20);
+    assert!(screen.contains("No volume control"));
+    assert!(!screen.contains("Press Enter to change"));
+
+    app.handle_key(KeyCode::Char('5'));
+    assert!(draw(&app, 100, 20).contains("Press Enter to change"));
+}

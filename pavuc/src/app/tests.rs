@@ -484,3 +484,14 @@ fn losing_the_server_clears_state_and_popup() {
     assert!(!app.disconnected);
     assert!(app.status.contains("Reconnected"));
 }
+
+#[test]
+fn stream_without_volume_refuses_volume_keys() {
+    let mut state = sample_state();
+    state.source_outputs[0].has_volume = false;
+    let mut app = App::default();
+    app.update_state(state);
+    app.handle_key(KeyCode::Char('2'));
+    assert_eq!(app.handle_key(KeyCode::Right), None);
+    assert!(app.status.contains("no volume control"));
+}
