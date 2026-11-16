@@ -6,7 +6,7 @@
 //! (`libpulse`) drives PipeWire transparently. This crate wraps that API behind
 //! a small, UI-friendly surface:
 //!
-//! - [`PulseClient`] owns the connection and exposes commands (set volume,
+//! - [`PulseClient`] owns the connection and runs [`Command`]s (set volume,
 //!   mute, move streams, change card profiles, select ports, set defaults).
 //! - [`PulseState`] is an owned snapshot of everything pavucontrol shows
 //!   (sinks, sources, playback/recording streams, and cards).
@@ -32,10 +32,12 @@
 #![warn(missing_docs)]
 
 mod client;
+mod command;
 mod error;
 mod model;
 pub mod volume;
 
 pub use client::PulseClient;
+pub use command::Command;
 pub use error::{Error, Result};
 pub use model::{Card, Device, DeviceState, Port, Profile, PulseState, Stream};

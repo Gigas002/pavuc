@@ -1,6 +1,6 @@
 //! Application state and input handling for the pavuc TUI.
 
-use libpavuc::{PulseClient, PulseState, volume};
+use libpavuc::{Command, PulseState, volume};
 use ratatui::crossterm::event::KeyCode;
 
 /// The five tabs, matching pavucontrol exactly.
@@ -142,11 +142,10 @@ impl App {
         self.selected[self.tab] = value;
     }
 
-    /// Handles a key press, issuing commands to `client` as needed.
-    pub fn handle_key(&mut self, code: KeyCode, client: &mut PulseClient) {
+    /// Handles a key press and returns the command to send, if any.
+    pub fn handle_key(&mut self, code: KeyCode) -> Option<Command> {
         if self.popup.is_some() {
-            self.handle_popup_key(code, client);
-            return;
+            return self.handle_popup_key(code);
         }
 
         match code {
@@ -160,16 +159,17 @@ impl App {
             KeyCode::BackTab => self.tab = (self.tab + Tab::ALL.len() - 1) % Tab::ALL.len(),
             KeyCode::Up | KeyCode::Char('k') => self.move_selection(-1),
             KeyCode::Down | KeyCode::Char('j') => self.move_selection(1),
-            KeyCode::Left | KeyCode::Char('h') => self.adjust_volume(-COARSE_STEP, client),
-            KeyCode::Right | KeyCode::Char('l') => self.adjust_volume(COARSE_STEP, client),
-            KeyCode::Char('<') | KeyCode::Char(',') => self.adjust_volume(-FINE_STEP, client),
-            KeyCode::Char('>') | KeyCode::Char('.') => self.adjust_volume(FINE_STEP, client),
-            KeyCode::Char('m') => self.toggle_mute(client),
-            KeyCode::Char('d') => self.set_default(client),
-            KeyCode::Char('x') => self.kill_stream(client),
+            KeyCode::Left | KeyCode::Char('h') => return self.adjust_volume(-COARSE_STEP),
+            KeyCode::Right | KeyCode::Char('l') => return self.adjust_volume(COARSE_STEP),
+            KeyCode::Char('<' | ',') => return self.adjust_volume(-FINE_STEP),
+            KeyCode::Char('>' | '.') => return self.adjust_volume(FINE_STEP),
+            KeyCode::Char('m') => return self.toggle_mute(),
+            KeyCode::Char('d') => return self.set_default(),
+            KeyCode::Char('x') => return self.kill_stream(),
             KeyCode::Enter => self.open_popup(),
             _ => {}
         }
+        None
     }
 
     fn move_selection(&mut self, delta: i64) {
@@ -182,105 +182,119 @@ impl App {
         self.set_selection(next);
     }
 
-    fn adjust_volume(&mut self, delta: i64, client: &mut PulseClient) {
+    fn adjust_volume(&mut self, delta: i64) -> Option<Command> {
         let sel = self.selection();
         match self.current_tab() {
             Tab::Playback => {
-                if let Some(s) = self.state.sink_inputs.get(sel) {
-                    if !s.volume_writable {
-                        self.status = "This stream's volume is not adjustable".to_string();
-                        return;
-                    }
-                    let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
-                    client.set_sink_input_volume(s.index, s.channels, target);
+                let s = self.state.sink_inputs.get(sel)?;
+                if !s.volume_writable {
+                    self.status = "This stream's volume is not adjustable".to_string();
+                    return None;
                 }
+                let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
+                Some(Command::SetSinkInputVolume {
+                    index: s.index,
+                    volume: uniform(s.channels, target),
+                })
             }
             Tab::Recording => {
-                if let Some(s) = self.state.source_outputs.get(sel) {
-                    if !s.volume_writable {
-                        self.status = "This stream's volume is not adjustable".to_string();
-                        return;
-                    }
-                    let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
-                    client.set_source_output_volume(s.index, s.channels, target);
+                let s = self.state.source_outputs.get(sel)?;
+                if !s.volume_writable {
+                    self.status = "This stream's volume is not adjustable".to_string();
+                    return None;
                 }
+                let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
+                Some(Command::SetSourceOutputVolume {
+                    index: s.index,
+                    volume: uniform(s.channels, target),
+                })
             }
             Tab::Output => {
-                if let Some(d) = self.state.sinks.get(sel) {
-                    let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
-                    client.set_sink_volume(d.index, d.channels, target);
-                }
+                let d = self.state.sinks.get(sel)?;
+                let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
+                Some(Command::SetSinkVolume {
+                    index: d.index,
+                    volume: uniform(d.channels, target),
+                })
             }
             Tab::Input => {
-                if let Some(d) = self.state.sources.get(sel) {
-                    let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
-                    client.set_source_volume(d.index, d.channels, target);
-                }
+                let d = self.state.sources.get(sel)?;
+                let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
+                Some(Command::SetSourceVolume {
+                    index: d.index,
+                    volume: uniform(d.channels, target),
+                })
             }
-            Tab::Configuration => {}
+            Tab::Configuration => None,
         }
     }
 
-    fn toggle_mute(&mut self, client: &mut PulseClient) {
+    fn toggle_mute(&self) -> Option<Command> {
         let sel = self.selection();
         match self.current_tab() {
-            Tab::Playback => {
-                if let Some(s) = self.state.sink_inputs.get(sel) {
-                    client.set_sink_input_mute(s.index, !s.mute);
-                }
-            }
+            Tab::Playback => self
+                .state
+                .sink_inputs
+                .get(sel)
+                .map(|s| Command::SetSinkInputMute {
+                    index: s.index,
+                    mute: !s.mute,
+                }),
             Tab::Recording => {
-                if let Some(s) = self.state.source_outputs.get(sel) {
-                    client.set_source_output_mute(s.index, !s.mute);
-                }
+                self.state
+                    .source_outputs
+                    .get(sel)
+                    .map(|s| Command::SetSourceOutputMute {
+                        index: s.index,
+                        mute: !s.mute,
+                    })
             }
-            Tab::Output => {
-                if let Some(d) = self.state.sinks.get(sel) {
-                    client.set_sink_mute(d.index, !d.mute);
-                }
-            }
-            Tab::Input => {
-                if let Some(d) = self.state.sources.get(sel) {
-                    client.set_source_mute(d.index, !d.mute);
-                }
-            }
-            Tab::Configuration => {}
+            Tab::Output => self.state.sinks.get(sel).map(|d| Command::SetSinkMute {
+                index: d.index,
+                mute: !d.mute,
+            }),
+            Tab::Input => self.state.sources.get(sel).map(|d| Command::SetSourceMute {
+                index: d.index,
+                mute: !d.mute,
+            }),
+            Tab::Configuration => None,
         }
     }
 
-    fn set_default(&mut self, client: &mut PulseClient) {
+    fn set_default(&mut self) -> Option<Command> {
         let sel = self.selection();
         match self.current_tab() {
             Tab::Output => {
-                if let Some(d) = self.state.sinks.get(sel) {
-                    client.set_default_sink(&d.name);
-                    self.status = format!("Set {} as default output", d.description);
-                }
+                let d = self.state.sinks.get(sel)?;
+                self.status = format!("Set {} as default output", d.description);
+                Some(Command::SetDefaultSink(d.name.clone()))
             }
             Tab::Input => {
-                if let Some(d) = self.state.sources.get(sel) {
-                    client.set_default_source(&d.name);
-                    self.status = format!("Set {} as default input", d.description);
-                }
+                let d = self.state.sources.get(sel)?;
+                self.status = format!("Set {} as default input", d.description);
+                Some(Command::SetDefaultSource(d.name.clone()))
             }
-            _ => self.status = "Set-as-default only applies to devices".to_string(),
+            _ => {
+                self.status = "Set-as-default only applies to devices".to_string();
+                None
+            }
         }
     }
 
-    fn kill_stream(&mut self, client: &mut PulseClient) {
+    fn kill_stream(&self) -> Option<Command> {
         let sel = self.selection();
         match self.current_tab() {
-            Tab::Playback => {
-                if let Some(s) = self.state.sink_inputs.get(sel) {
-                    client.kill_sink_input(s.index);
-                }
-            }
-            Tab::Recording => {
-                if let Some(s) = self.state.source_outputs.get(sel) {
-                    client.kill_source_output(s.index);
-                }
-            }
-            _ => {}
+            Tab::Playback => self
+                .state
+                .sink_inputs
+                .get(sel)
+                .map(|s| Command::KillSinkInput(s.index)),
+            Tab::Recording => self
+                .state
+                .source_outputs
+                .get(sel)
+                .map(|s| Command::KillSourceOutput(s.index)),
+            _ => None,
         }
     }
 
@@ -403,10 +417,8 @@ impl App {
         }
     }
 
-    fn handle_popup_key(&mut self, code: KeyCode, client: &mut PulseClient) {
-        let Some(popup) = &mut self.popup else {
-            return;
-        };
+    fn handle_popup_key(&mut self, code: KeyCode) -> Option<Command> {
+        let popup = self.popup.as_mut()?;
         match code {
             KeyCode::Esc | KeyCode::Char('q') => self.popup = None,
             KeyCode::Up | KeyCode::Char('k') => {
@@ -419,35 +431,45 @@ impl App {
                     popup.selected = (popup.selected + 1) % popup.items.len();
                 }
             }
-            KeyCode::Enter => {
-                self.confirm_popup(client);
-                self.popup = None;
-            }
+            KeyCode::Enter => return self.popup.take().and_then(|p| p.confirm()),
             _ => {}
         }
+        None
     }
+}
 
-    fn confirm_popup(&mut self, client: &mut PulseClient) {
-        let Some(popup) = &self.popup else {
-            return;
-        };
-        let Some(item) = popup.items.get(popup.selected) else {
-            return;
-        };
-        match &popup.kind {
-            PopupKind::MoveSinkInput(index) => {
-                if let Ok(sink) = item.value.parse::<u32>() {
-                    client.move_sink_input(*index, sink);
-                }
-            }
-            PopupKind::MoveSourceOutput(index) => {
-                if let Ok(source) = item.value.parse::<u32>() {
-                    client.move_source_output(*index, source);
-                }
-            }
-            PopupKind::SinkPort(index) => client.set_sink_port(*index, &item.value),
-            PopupKind::SourcePort(index) => client.set_source_port(*index, &item.value),
-            PopupKind::CardProfile(index) => client.set_card_profile(*index, &item.value),
+impl Popup {
+    /// The command for the highlighted entry.
+    fn confirm(self) -> Option<Command> {
+        let item = self.items.into_iter().nth(self.selected)?;
+        match self.kind {
+            PopupKind::MoveSinkInput(index) => item
+                .value
+                .parse()
+                .ok()
+                .map(|sink| Command::MoveSinkInput { index, sink }),
+            PopupKind::MoveSourceOutput(index) => item
+                .value
+                .parse()
+                .ok()
+                .map(|source| Command::MoveSourceOutput { index, source }),
+            PopupKind::SinkPort(index) => Some(Command::SetSinkPort {
+                index,
+                port: item.value,
+            }),
+            PopupKind::SourcePort(index) => Some(Command::SetSourcePort {
+                index,
+                port: item.value,
+            }),
+            PopupKind::CardProfile(card) => Some(Command::SetCardProfile {
+                card,
+                profile: item.value,
+            }),
         }
     }
+}
+
+/// `channels` raw volumes, all at `percent`.
+fn uniform(channels: u8, percent: u32) -> Vec<u32> {
+    vec![volume::percent_to_raw(percent); usize::from(channels.max(1))]
 }

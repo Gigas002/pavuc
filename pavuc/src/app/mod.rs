@@ -50,7 +50,9 @@ fn event_loop(
             && key.kind == KeyEventKind::Press
         {
             app.status.clear();
-            app.handle_key(key.code, client);
+            if let Some(command) = app.handle_key(key.code) {
+                client.execute(command);
+            }
         }
     }
 

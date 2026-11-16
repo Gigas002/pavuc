@@ -18,9 +18,9 @@ use libpulse_binding::mainloop::standard::{IterateResult, Mainloop};
 use libpulse_binding::operation::{Operation, State as OperationState};
 use libpulse_binding::volume::{ChannelVolumes, Volume};
 
+use crate::command::Command;
 use crate::error::{Error, Result};
 use crate::model::{Card, Device, PulseState, Stream};
-use crate::volume;
 
 /// Type-erased handle that keeps an in-flight operation (and, crucially, its
 /// boxed callback) alive until the server reports it finished.
@@ -153,129 +153,64 @@ impl PulseClient {
         self.state.borrow().clone()
     }
 
-    // --- Volume / mute -----------------------------------------------------
-
-    /// Sets the volume of a sink (output device) to `percent` on all channels.
-    pub fn set_sink_volume(&mut self, index: u32, channels: u8, percent: u32) {
-        let cv = uniform_volume(channels, volume::percent_to_raw(percent));
+    /// Sends `command` to the server.
+    ///
+    /// The command is queued and runs asynchronously; its effect shows up in a
+    /// later [`Self::snapshot`] once the server reports the change.
+    pub fn execute(&mut self, command: Command) {
         let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_sink_volume_by_index(index, &cv, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Mutes or unmutes a sink (output device).
-    pub fn set_sink_mute(&mut self, index: u32, mute: bool) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_sink_mute_by_index(index, mute, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Sets the volume of a source (input device) to `percent` on all channels.
-    pub fn set_source_volume(&mut self, index: u32, channels: u8, percent: u32) {
-        let cv = uniform_volume(channels, volume::percent_to_raw(percent));
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_source_volume_by_index(index, &cv, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Mutes or unmutes a source (input device).
-    pub fn set_source_mute(&mut self, index: u32, mute: bool) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_source_mute_by_index(index, mute, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Sets the volume of a playback stream (sink input).
-    pub fn set_sink_input_volume(&mut self, index: u32, channels: u8, percent: u32) {
-        let cv = uniform_volume(channels, volume::percent_to_raw(percent));
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_sink_input_volume(index, &cv, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Mutes or unmutes a playback stream (sink input).
-    pub fn set_sink_input_mute(&mut self, index: u32, mute: bool) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_sink_input_mute(index, mute, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Sets the volume of a recording stream (source output).
-    pub fn set_source_output_volume(&mut self, index: u32, channels: u8, percent: u32) {
-        let cv = uniform_volume(channels, volume::percent_to_raw(percent));
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_source_output_volume(index, &cv, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Mutes or unmutes a recording stream (source output).
-    pub fn set_source_output_mute(&mut self, index: u32, mute: bool) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_source_output_mute(index, mute, None);
-        self.pending.push(Box::new(op));
-    }
-
-    // --- Defaults / routing ------------------------------------------------
-
-    /// Sets the default sink (fallback output device) by name.
-    pub fn set_default_sink(&mut self, name: &str) {
-        let op = self.context.borrow_mut().set_default_sink(name, |_| {});
-        self.pending.push(Box::new(op));
-    }
-
-    /// Sets the default source (fallback input device) by name.
-    pub fn set_default_source(&mut self, name: &str) {
-        let op = self.context.borrow_mut().set_default_source(name, |_| {});
-        self.pending.push(Box::new(op));
-    }
-
-    /// Moves a playback stream to a different sink.
-    pub fn move_sink_input(&mut self, index: u32, sink_index: u32) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.move_sink_input_by_index(index, sink_index, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Moves a recording stream to a different source.
-    pub fn move_source_output(&mut self, index: u32, source_index: u32) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.move_source_output_by_index(index, source_index, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Selects the active profile of a card.
-    pub fn set_card_profile(&mut self, card_index: u32, profile: &str) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_card_profile_by_index(card_index, profile, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Selects the active port of a sink (output device).
-    pub fn set_sink_port(&mut self, index: u32, port: &str) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_sink_port_by_index(index, port, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Selects the active port of a source (input device).
-    pub fn set_source_port(&mut self, index: u32, port: &str) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.set_source_port_by_index(index, port, None);
-        self.pending.push(Box::new(op));
-    }
-
-    /// Terminates a playback stream.
-    pub fn kill_sink_input(&mut self, index: u32) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.kill_sink_input(index, |_| {});
-        self.pending.push(Box::new(op));
-    }
-
-    /// Terminates a recording stream.
-    pub fn kill_source_output(&mut self, index: u32) {
-        let mut introspect = self.context.borrow().introspect();
-        let op = introspect.kill_source_output(index, |_| {});
-        self.pending.push(Box::new(op));
+        let op: Box<dyn PendingOp> = match command {
+            Command::SetSinkVolume { index, volume } => Box::new(
+                introspect.set_sink_volume_by_index(index, &channel_volumes(&volume), None),
+            ),
+            Command::SetSinkMute { index, mute } => {
+                Box::new(introspect.set_sink_mute_by_index(index, mute, None))
+            }
+            Command::SetSourceVolume { index, volume } => Box::new(
+                introspect.set_source_volume_by_index(index, &channel_volumes(&volume), None),
+            ),
+            Command::SetSourceMute { index, mute } => {
+                Box::new(introspect.set_source_mute_by_index(index, mute, None))
+            }
+            Command::SetSinkInputVolume { index, volume } => {
+                Box::new(introspect.set_sink_input_volume(index, &channel_volumes(&volume), None))
+            }
+            Command::SetSinkInputMute { index, mute } => {
+                Box::new(introspect.set_sink_input_mute(index, mute, None))
+            }
+            Command::SetSourceOutputVolume { index, volume } => Box::new(
+                introspect.set_source_output_volume(index, &channel_volumes(&volume), None),
+            ),
+            Command::SetSourceOutputMute { index, mute } => {
+                Box::new(introspect.set_source_output_mute(index, mute, None))
+            }
+            Command::SetDefaultSink(name) => {
+                Box::new(self.context.borrow_mut().set_default_sink(&name, |_| {}))
+            }
+            Command::SetDefaultSource(name) => {
+                Box::new(self.context.borrow_mut().set_default_source(&name, |_| {}))
+            }
+            Command::MoveSinkInput { index, sink } => {
+                Box::new(introspect.move_sink_input_by_index(index, sink, None))
+            }
+            Command::MoveSourceOutput { index, source } => {
+                Box::new(introspect.move_source_output_by_index(index, source, None))
+            }
+            Command::SetCardProfile { card, profile } => {
+                Box::new(introspect.set_card_profile_by_index(card, &profile, None))
+            }
+            Command::SetSinkPort { index, port } => {
+                Box::new(introspect.set_sink_port_by_index(index, &port, None))
+            }
+            Command::SetSourcePort { index, port } => {
+                Box::new(introspect.set_source_port_by_index(index, &port, None))
+            }
+            Command::KillSinkInput(index) => Box::new(introspect.kill_sink_input(index, |_| {})),
+            Command::KillSourceOutput(index) => {
+                Box::new(introspect.kill_source_output(index, |_| {}))
+            }
+        };
+        self.pending.push(op);
     }
 
     // --- Introspection -----------------------------------------------------
@@ -417,10 +352,20 @@ impl Drop for PulseClient {
     }
 }
 
-/// Builds a [`ChannelVolumes`] with `channels` channels all set to `raw`.
-fn uniform_volume(channels: u8, raw: u32) -> ChannelVolumes {
+/// Builds a [`ChannelVolumes`] from raw per-channel values.
+///
+/// An empty slice becomes one muted channel; values past
+/// [`ChannelVolumes::CHANNELS_MAX`] are dropped.
+fn channel_volumes(raw: &[u32]) -> ChannelVolumes {
     let mut cv = ChannelVolumes::default();
-    cv.set(channels.max(1), Volume(raw));
+    let channels = raw
+        .len()
+        .clamp(1, usize::from(ChannelVolumes::CHANNELS_MAX));
+    #[allow(clippy::cast_possible_truncation)] // clamped to CHANNELS_MAX (32) above
+    cv.set(channels as u8, Volume::MUTED);
+    for (slot, &value) in cv.get_mut().iter_mut().zip(raw) {
+        *slot = Volume(value);
+    }
     cv
 }
 

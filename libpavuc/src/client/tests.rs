@@ -4,7 +4,9 @@
 //! Those paths are covered by the ignored smoke test below (run manually when a
 //! server is available). Pure helpers are tested here without I/O.
 
-use super::{PulseClient, uniform_volume};
+use libpulse_binding::volume::ChannelVolumes;
+
+use super::{PulseClient, channel_volumes};
 use crate::volume;
 
 #[test]
@@ -13,25 +15,26 @@ fn connect_fn_matches_public_api() {
 }
 
 #[test]
-fn uniform_volume_clamps_zero_channels_to_one() {
-    let cv = uniform_volume(0, volume::NORMAL);
-    assert_eq!(cv.len(), 1);
-    assert_eq!(cv.get()[0].0, volume::NORMAL);
-}
-
-#[test]
-fn uniform_volume_sets_all_channels() {
-    let cv = uniform_volume(2, volume::percent_to_raw(50));
+fn channel_volumes_keeps_each_channel() {
+    let cv = channel_volumes(&[volume::NORMAL, volume::NORMAL / 2]);
     assert_eq!(cv.len(), 2);
-    for channel in cv.get() {
-        assert_eq!(channel.0, volume::percent_to_raw(50));
-    }
+    assert_eq!(cv.get()[0].0, volume::NORMAL);
+    assert_eq!(cv.get()[1].0, volume::NORMAL / 2);
 }
 
 #[test]
-fn uniform_volume_uses_raw_value_directly() {
-    let cv = uniform_volume(1, 42_000);
-    assert_eq!(cv.get()[0].0, 42_000);
+fn channel_volumes_turns_empty_into_one_muted_channel() {
+    let cv = channel_volumes(&[]);
+    assert_eq!(cv.len(), 1);
+    assert_eq!(cv.get()[0].0, volume::MUTED);
+}
+
+#[test]
+fn channel_volumes_caps_at_channels_max() {
+    let raw = vec![42; 64];
+    let cv = channel_volumes(&raw);
+    assert_eq!(cv.len(), ChannelVolumes::CHANNELS_MAX);
+    assert!(cv.get().iter().all(|v| v.0 == 42));
 }
 
 /// Manual smoke test — requires PulseAudio or `pipewire-pulse` running.
