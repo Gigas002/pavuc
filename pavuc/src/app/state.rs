@@ -194,7 +194,7 @@ impl App {
                 let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
                 Some(Command::SetSinkInputVolume {
                     index: s.index,
-                    volume: uniform(s.channels, target),
+                    volume: volume::scale(&s.volume, target),
                 })
             }
             Tab::Recording => {
@@ -206,7 +206,7 @@ impl App {
                 let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
                 Some(Command::SetSourceOutputVolume {
                     index: s.index,
-                    volume: uniform(s.channels, target),
+                    volume: volume::scale(&s.volume, target),
                 })
             }
             Tab::Output => {
@@ -214,7 +214,7 @@ impl App {
                 let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
                 Some(Command::SetSinkVolume {
                     index: d.index,
-                    volume: uniform(d.channels, target),
+                    volume: volume::scale(&d.volume, target),
                 })
             }
             Tab::Input => {
@@ -222,7 +222,7 @@ impl App {
                 let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
                 Some(Command::SetSourceVolume {
                     index: d.index,
-                    volume: uniform(d.channels, target),
+                    volume: volume::scale(&d.volume, target),
                 })
             }
             Tab::Configuration => None,
@@ -467,9 +467,4 @@ impl Popup {
             }),
         }
     }
-}
-
-/// `channels` raw volumes, all at `percent`.
-fn uniform(channels: u8, percent: u32) -> Vec<u32> {
-    vec![volume::percent_to_raw(percent); usize::from(channels.max(1))]
 }

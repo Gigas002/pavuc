@@ -34,5 +34,32 @@ pub fn clamp_percent(percent: i64) -> u32 {
     percent.clamp(0, i64::from(UI_MAX_PERCENT)) as u32
 }
 
+/// Scales per-channel `volumes` so the loudest channel lands on `percent`,
+/// keeping the balance between channels (like `pa_cvolume_scale`).
+///
+/// When every channel is silent there is no balance to keep, so all channels
+/// are set to `percent`. An empty slice gives one channel.
+#[must_use]
+pub fn scale(volumes: &[u32], percent: u32) -> Vec<u32> {
+    let target = u64::from(percent_to_raw(percent));
+    let max = u64::from(max(volumes));
+    if max == 0 {
+        return vec![percent_to_raw(percent); volumes.len().max(1)];
+    }
+    volumes
+        .iter()
+        .map(|&v| {
+            let scaled = (u64::from(v) * target + max / 2) / max;
+            u32::try_from(scaled).unwrap_or(u32::MAX)
+        })
+        .collect()
+}
+
+/// The loudest channel's raw volume (`pa_cvolume_max`), or 0 for no channels.
+#[must_use]
+pub fn max(volumes: &[u32]) -> u32 {
+    volumes.iter().copied().max().unwrap_or(MUTED)
+}
+
 #[cfg(test)]
 mod tests;

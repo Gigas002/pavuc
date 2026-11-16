@@ -350,3 +350,20 @@ fn popup_swallows_other_keys() {
     assert_eq!(app.current_tab(), Tab::Playback);
     assert!(app.popup.is_some());
 }
+
+/// Regression: a step used to set every channel to the average, so an
+/// unbalanced 100% / 50% stream became 80% / 80% on "+5%".
+#[test]
+fn volume_step_keeps_channel_balance() {
+    let mut state = sample_state();
+    state.sink_inputs[0].volume = vec![volume::NORMAL, volume::NORMAL / 2];
+    let mut app = App::default();
+    app.update_state(state);
+    let Some(Command::SetSinkInputVolume { volume, .. }) = app.handle_key(KeyCode::Right) else {
+        panic!("expected a volume command");
+    };
+    assert_eq!(
+        volume,
+        vec![volume::percent_to_raw(105), volume::percent_to_raw(105) / 2]
+    );
+}
