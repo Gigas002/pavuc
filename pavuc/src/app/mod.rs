@@ -36,6 +36,7 @@ fn event_loop(
     while !app.should_quit {
         client.iterate()?;
         app.update_state(client.snapshot());
+        app.report_failures(client.take_failures());
 
         terminal.draw(|frame| ui::render(frame, &app))?;
 

@@ -9,7 +9,7 @@
 //! PulseAudio-compatible server, exactly like pavucontrol does.
 
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use libpulse_binding::callbacks::ListResult;
 use libpulse_binding::context::subscribe::InterestMaskSet;
@@ -41,6 +41,7 @@ impl<T: ?Sized> PendingOp for Operation<T> {
 pub struct PulseClient {
     pending: Vec<Box<dyn PendingOp>>,
     context: Rc<RefCell<Context>>,
+    failures: Rc<RefCell<Vec<String>>>,
     state: Rc<RefCell<PulseState>>,
     dirty: Rc<Cell<bool>>,
     mainloop: Rc<RefCell<Mainloop>>,
@@ -117,6 +118,7 @@ impl PulseClient {
         let mut client = Self {
             pending: Vec::new(),
             context,
+            failures: Rc::default(),
             state,
             dirty,
             mainloop,
@@ -178,60 +180,101 @@ impl PulseClient {
     ///
     /// The command is queued and runs asynchronously; its effect shows up in a
     /// later [`Self::snapshot`] once the server reports the change.
+    ///
+    /// If the server refuses it, a message is queued for
+    /// [`Self::take_failures`].
     pub fn execute(&mut self, command: Command) {
+        let done = self.on_done(command.describe());
+        let cb = || Some(Box::new(done.clone()) as Box<dyn FnMut(bool)>);
         let mut introspect = self.context.borrow().introspect();
         let op: Box<dyn PendingOp> = match command {
             Command::SetSinkVolume { index, volume } => Box::new(
-                introspect.set_sink_volume_by_index(index, &channel_volumes(&volume), None),
+                introspect.set_sink_volume_by_index(index, &channel_volumes(&volume), cb()),
             ),
             Command::SetSinkMute { index, mute } => {
-                Box::new(introspect.set_sink_mute_by_index(index, mute, None))
+                Box::new(introspect.set_sink_mute_by_index(index, mute, cb()))
             }
             Command::SetSourceVolume { index, volume } => Box::new(
-                introspect.set_source_volume_by_index(index, &channel_volumes(&volume), None),
+                introspect.set_source_volume_by_index(index, &channel_volumes(&volume), cb()),
             ),
             Command::SetSourceMute { index, mute } => {
-                Box::new(introspect.set_source_mute_by_index(index, mute, None))
+                Box::new(introspect.set_source_mute_by_index(index, mute, cb()))
             }
             Command::SetSinkInputVolume { index, volume } => {
-                Box::new(introspect.set_sink_input_volume(index, &channel_volumes(&volume), None))
+                Box::new(introspect.set_sink_input_volume(index, &channel_volumes(&volume), cb()))
             }
             Command::SetSinkInputMute { index, mute } => {
-                Box::new(introspect.set_sink_input_mute(index, mute, None))
+                Box::new(introspect.set_sink_input_mute(index, mute, cb()))
             }
             Command::SetSourceOutputVolume { index, volume } => Box::new(
-                introspect.set_source_output_volume(index, &channel_volumes(&volume), None),
+                introspect.set_source_output_volume(index, &channel_volumes(&volume), cb()),
             ),
             Command::SetSourceOutputMute { index, mute } => {
-                Box::new(introspect.set_source_output_mute(index, mute, None))
+                Box::new(introspect.set_source_output_mute(index, mute, cb()))
             }
-            Command::SetDefaultSink(name) => {
-                Box::new(self.context.borrow_mut().set_default_sink(&name, |_| {}))
-            }
-            Command::SetDefaultSource(name) => {
-                Box::new(self.context.borrow_mut().set_default_source(&name, |_| {}))
-            }
+            Command::SetDefaultSink(name) => Box::new(
+                self.context
+                    .borrow_mut()
+                    .set_default_sink(&name, done.clone()),
+            ),
+            Command::SetDefaultSource(name) => Box::new(
+                self.context
+                    .borrow_mut()
+                    .set_default_source(&name, done.clone()),
+            ),
             Command::MoveSinkInput { index, sink } => {
-                Box::new(introspect.move_sink_input_by_index(index, sink, None))
+                Box::new(introspect.move_sink_input_by_index(index, sink, cb()))
             }
             Command::MoveSourceOutput { index, source } => {
-                Box::new(introspect.move_source_output_by_index(index, source, None))
+                Box::new(introspect.move_source_output_by_index(index, source, cb()))
             }
             Command::SetCardProfile { card, profile } => {
-                Box::new(introspect.set_card_profile_by_index(card, &profile, None))
+                Box::new(introspect.set_card_profile_by_index(card, &profile, cb()))
             }
             Command::SetSinkPort { index, port } => {
-                Box::new(introspect.set_sink_port_by_index(index, &port, None))
+                Box::new(introspect.set_sink_port_by_index(index, &port, cb()))
             }
             Command::SetSourcePort { index, port } => {
-                Box::new(introspect.set_source_port_by_index(index, &port, None))
+                Box::new(introspect.set_source_port_by_index(index, &port, cb()))
             }
-            Command::KillSinkInput(index) => Box::new(introspect.kill_sink_input(index, |_| {})),
+            Command::KillSinkInput(index) => {
+                Box::new(introspect.kill_sink_input(index, done.clone()))
+            }
             Command::KillSourceOutput(index) => {
-                Box::new(introspect.kill_source_output(index, |_| {}))
+                Box::new(introspect.kill_source_output(index, done.clone()))
             }
         };
         self.pending.push(op);
+    }
+
+    /// Takes the messages of commands the server refused since the last call,
+    /// oldest first, e.g. "could not change the profile: No such entity".
+    pub fn take_failures(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.failures.borrow_mut())
+    }
+
+    /// A completion callback that records a failure of the action `what`.
+    ///
+    /// It holds the context weakly: the callback is owned by an operation the
+    /// context keeps, so a strong reference would be a cycle.
+    fn on_done(&self, what: &'static str) -> impl FnMut(bool) + Clone + 'static {
+        let failures = Rc::downgrade(&self.failures);
+        let context: Weak<RefCell<Context>> = Rc::downgrade(&self.context);
+        move |success| {
+            if success {
+                return;
+            }
+            let reason = context
+                .upgrade()
+                .and_then(|context| context.try_borrow().ok().map(|c| last_error(&c)));
+            if let Some(failures) = failures.upgrade() {
+                let message = match reason {
+                    Some(reason) => format!("could not {what}: {reason}"),
+                    None => format!("could not {what}"),
+                };
+                failures.borrow_mut().push(message);
+            }
+        }
     }
 
     // --- Introspection -----------------------------------------------------

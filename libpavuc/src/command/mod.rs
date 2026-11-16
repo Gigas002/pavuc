@@ -108,5 +108,27 @@ pub enum Command {
     KillSourceOutput(u32),
 }
 
+impl Command {
+    /// What the command does, phrased to follow "could not", e.g. "change the port".
+    #[must_use]
+    pub const fn describe(&self) -> &'static str {
+        match self {
+            Self::SetSinkVolume { .. }
+            | Self::SetSourceVolume { .. }
+            | Self::SetSinkInputVolume { .. }
+            | Self::SetSourceOutputVolume { .. } => "change the volume",
+            Self::SetSinkMute { .. }
+            | Self::SetSourceMute { .. }
+            | Self::SetSinkInputMute { .. }
+            | Self::SetSourceOutputMute { .. } => "change mute",
+            Self::SetDefaultSink(_) | Self::SetDefaultSource(_) => "set the default device",
+            Self::MoveSinkInput { .. } | Self::MoveSourceOutput { .. } => "move the stream",
+            Self::SetCardProfile { .. } => "change the profile",
+            Self::SetSinkPort { .. } | Self::SetSourcePort { .. } => "change the port",
+            Self::KillSinkInput(_) | Self::KillSourceOutput(_) => "terminate the stream",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

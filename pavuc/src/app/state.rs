@@ -138,6 +138,17 @@ impl App {
         }
     }
 
+    /// Shows the most recent refused command in the status line.
+    pub fn report_failures(&mut self, failures: Vec<String>) {
+        if let Some(last) = failures.into_iter().last() {
+            let mut chars = last.chars();
+            self.status = chars
+                .next()
+                .map(|first| first.to_uppercase().chain(chars).collect())
+                .unwrap_or_default();
+        }
+    }
+
     /// Server index of the object at `position` in `tab`.
     fn item_id(&self, tab: Tab, position: usize) -> Option<u32> {
         match tab {

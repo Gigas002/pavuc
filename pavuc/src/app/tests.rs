@@ -456,3 +456,15 @@ fn modified_keys_do_not_trigger_plain_actions() {
     assert_eq!(app.handle_key_event(plain_x), None);
     assert!(!app.should_quit);
 }
+
+#[test]
+fn refused_commands_show_in_the_status_line() {
+    let mut app = sample_app();
+    app.report_failures(Vec::new());
+    assert!(app.status.is_empty());
+    app.report_failures(vec![
+        "could not change mute".to_string(),
+        "could not change the profile: No such entity".to_string(),
+    ]);
+    assert_eq!(app.status, "Could not change the profile: No such entity");
+}

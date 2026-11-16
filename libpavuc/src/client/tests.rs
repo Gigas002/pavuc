@@ -80,3 +80,25 @@ fn refused_connection_reports_the_real_reason() {
         "{message}"
     );
 }
+
+/// Manual check that refused commands are reported — requires a server.
+#[test]
+#[ignore = "requires a running PulseAudio or pipewire-pulse server"]
+fn refused_command_is_reported() {
+    let mut client = PulseClient::connect("libpavuc-test").expect("connect");
+    client.execute(crate::Command::KillSinkInput(u32::MAX - 1));
+    let mut failures = Vec::new();
+    for _ in 0..100 {
+        client.iterate().expect("iterate");
+        failures.extend(client.take_failures());
+        if !failures.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert!(
+        failures[0].starts_with("could not terminate the stream: "),
+        "{failures:?}"
+    );
+}
