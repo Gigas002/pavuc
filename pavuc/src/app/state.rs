@@ -96,6 +96,8 @@ pub struct App {
     pub should_quit: bool,
     /// Transient status / hint message.
     pub status: String,
+    /// Whether the connection to the server was lost (and is being retried).
+    pub disconnected: bool,
 }
 
 impl App {
@@ -136,6 +138,20 @@ impl App {
             Tab::Input => self.state.sources.len(),
             Tab::Configuration => self.state.cards.len(),
         }
+    }
+
+    /// Marks the server as gone: drops the stale snapshot and any open popup.
+    pub fn set_disconnected(&mut self) {
+        self.disconnected = true;
+        self.popup = None;
+        self.update_state(PulseState::default());
+        self.status = "Connection to the audio server lost, reconnecting...".to_string();
+    }
+
+    /// Marks the server as reachable again.
+    pub fn set_connected(&mut self) {
+        self.disconnected = false;
+        self.status = "Reconnected to the audio server".to_string();
     }
 
     /// Shows the most recent refused command in the status line.

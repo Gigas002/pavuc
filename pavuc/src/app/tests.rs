@@ -468,3 +468,19 @@ fn refused_commands_show_in_the_status_line() {
     ]);
     assert_eq!(app.status, "Could not change the profile: No such entity");
 }
+
+#[test]
+fn losing_the_server_clears_state_and_popup() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Enter);
+    app.set_disconnected();
+    assert!(app.disconnected);
+    assert!(app.popup.is_none());
+    assert_eq!(app.item_count(Tab::Playback), 0);
+    assert!(app.status.contains("reconnecting"));
+    assert_eq!(app.handle_key(KeyCode::Char('m')), None);
+
+    app.set_connected();
+    assert!(!app.disconnected);
+    assert!(app.status.contains("Reconnected"));
+}

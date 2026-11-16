@@ -126,3 +126,12 @@ fn control_characters_in_names_are_not_rendered() {
         app.handle_key(KeyCode::Esc);
     }
 }
+
+#[test]
+fn disconnected_screen_says_it_is_waiting() {
+    let mut app = sample_app();
+    app.set_disconnected();
+    let screen = draw(&app, 100, 12);
+    assert!(screen.contains("Waiting for the audio server"));
+    assert!(screen.contains("reconnecting"));
+}

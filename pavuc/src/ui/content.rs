@@ -11,7 +11,11 @@ use crate::utils;
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let count = app.item_count(app.current_tab());
     if count == 0 {
-        let msg = empty_message(app.current_tab());
+        let msg = if app.disconnected {
+            "Waiting for the audio server (PulseAudio or pipewire-pulse)..."
+        } else {
+            empty_message(app.current_tab())
+        };
         let para = Paragraph::new(msg)
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center);
