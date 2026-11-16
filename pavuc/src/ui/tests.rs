@@ -151,3 +151,15 @@ fn stream_without_volume_says_so() {
     app.handle_key(KeyCode::Char('5'));
     assert!(draw(&app, 100, 20).contains("Press Enter to change"));
 }
+
+#[test]
+fn popup_with_u16_max_entries_renders() {
+    let mut app = sample_app();
+    app.handle_key(KeyCode::Char('5'));
+    let mut state = app.state.clone();
+    let profile = state.cards[0].profiles[0].clone();
+    state.cards[0].profiles = vec![profile; 65_534];
+    app.update_state(state);
+    app.handle_key(KeyCode::Enter);
+    assert!(draw(&app, 60, 20).contains("Select profile"));
+}
