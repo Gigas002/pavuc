@@ -17,14 +17,8 @@ pub use state::{App, PopupKind, Tab};
 /// Returns an error if the connection fails or the terminal loop encounters
 /// an unrecoverable error.
 pub fn run(settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = match PulseClient::connect(&settings.client_name) {
-        Ok(client) => client,
-        Err(error) => {
-            tracing::error!("could not connect to the audio server: {error}");
-            tracing::error!("is PulseAudio or pipewire-pulse running?");
-            return Err(error.into());
-        }
-    };
+    let mut client = PulseClient::connect(&settings.client_name)
+        .map_err(|error| format!("{error} (is PulseAudio or pipewire-pulse running?)"))?;
 
     let mut terminal = ratatui::init();
     let result = event_loop(&mut terminal, &mut client, &settings);
