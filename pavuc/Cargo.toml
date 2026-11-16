@@ -3,10 +3,11 @@ name = "pavuc"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-homepage.workspace = true
 description = "A pavucontrol analogue TUI built with ratatui"
 keywords.workspace = true
 repository.workspace = true
+readme.workspace = true
+categories = ["command-line-utilities", "multimedia::audio"]
 
 [[bin]]
 name = "pavuc"
