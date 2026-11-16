@@ -34,6 +34,19 @@ pub fn clamp_percent(percent: i64) -> u32 {
     percent.clamp(0, i64::from(UI_MAX_PERCENT)) as u32
 }
 
+/// Moves `current` by `delta` percentage points, clamped to
+/// `0..=UI_MAX_PERCENT`.
+///
+/// A volume already above [`UI_MAX_PERCENT`] (set by another program) is
+/// never pulled down by a raise, and a cut from it goes down one step instead
+/// of snapping to the UI maximum.
+#[must_use]
+pub fn step_percent(current: u32, delta: i64) -> u32 {
+    let ceiling = i64::from(current.max(UI_MAX_PERCENT));
+    let stepped = (i64::from(current) + delta).clamp(0, ceiling);
+    u32::try_from(stepped).unwrap_or(u32::MAX)
+}
+
 /// Scales per-channel `volumes` so the loudest channel lands on `percent`,
 /// keeping the balance between channels (like `pa_cvolume_scale`).
 ///

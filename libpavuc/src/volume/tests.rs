@@ -48,3 +48,17 @@ fn max_is_the_loudest_channel() {
     assert_eq!(max(&[1, 7, 3]), 7);
     assert_eq!(max(&[]), MUTED);
 }
+
+#[test]
+fn step_clamps_to_ui_range() {
+    assert_eq!(step_percent(3, -5), 0);
+    assert_eq!(step_percent(150, 5), UI_MAX_PERCENT);
+    assert_eq!(step_percent(50, 5), 55);
+}
+
+/// Regression: "+5%" on a stream at 200% used to clamp it down to 153%.
+#[test]
+fn step_never_moves_against_the_key() {
+    assert_eq!(step_percent(200, 5), 200);
+    assert_eq!(step_percent(200, -5), 195);
+}

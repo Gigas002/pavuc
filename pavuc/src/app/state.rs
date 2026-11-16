@@ -191,7 +191,7 @@ impl App {
                     self.status = "This stream's volume is not adjustable".to_string();
                     return None;
                 }
-                let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
+                let target = volume::step_percent(s.volume_percent(), delta);
                 Some(Command::SetSinkInputVolume {
                     index: s.index,
                     volume: volume::scale(&s.volume, target),
@@ -203,7 +203,7 @@ impl App {
                     self.status = "This stream's volume is not adjustable".to_string();
                     return None;
                 }
-                let target = volume::clamp_percent(i64::from(s.volume_percent()) + delta);
+                let target = volume::step_percent(s.volume_percent(), delta);
                 Some(Command::SetSourceOutputVolume {
                     index: s.index,
                     volume: volume::scale(&s.volume, target),
@@ -211,7 +211,7 @@ impl App {
             }
             Tab::Output => {
                 let d = self.state.sinks.get(sel)?;
-                let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
+                let target = volume::step_percent(d.volume_percent(), delta);
                 Some(Command::SetSinkVolume {
                     index: d.index,
                     volume: volume::scale(&d.volume, target),
@@ -219,7 +219,7 @@ impl App {
             }
             Tab::Input => {
                 let d = self.state.sources.get(sel)?;
-                let target = volume::clamp_percent(i64::from(d.volume_percent()) + delta);
+                let target = volume::step_percent(d.volume_percent(), delta);
                 Some(Command::SetSourceVolume {
                     index: d.index,
                     volume: volume::scale(&d.volume, target),
